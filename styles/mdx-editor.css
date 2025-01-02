@@ -1,0 +1,195 @@
+/* Theme */
+.mdx-editor {
+  --accentBase: hsl(0 0% 100%);
+  --accentBgSubtle: hsl(0 0% 96.1%);
+  --accentBg: hsl(0 0% 93%);
+  --accentBgHover: hsl(0 0% 90%);
+  --accentBgActive: hsl(0 0% 87%);
+  --accentLine: hsl(0 0% 85%);
+  --accentBorder: hsl(0 0% 89.8%);
+  --accentBorderHover: hsl(0 0% 80%);
+  --accentSolid: hsl(0 0% 9%);
+  --accentSolidHover: hsl(0 0% 12%);
+  --accentText: hsl(0 0% 9%);
+  --accentTextContrast: hsl(0 0% 98%);
+
+  --baseBase: hsl(0 0% 100%);
+  --baseBgSubtle: hsl(0 0% 96.1%);
+  --baseBg: hsl(0 0% 93%);
+  --baseBgHover: hsl(0 0% 90%);
+  --baseBgActive: hsl(0 0% 87%);
+  --baseLine: hsl(0 0% 85%);
+  --baseBorder: hsl(0 0% 89.8%);
+  --baseBorderHover: hsl(0 0% 80%);
+  --baseSolid: hsl(0 0% 9%);
+  --baseSolidHover: hsl(0 0% 12%);
+  --baseText: hsl(0 0% 9%);
+  --baseTextContrast: hsl(0 0% 98%);
+
+  --admonitionTipBg: hsl(173 58% 90%);
+  --admonitionTipBorder: hsl(173 58% 39%);
+  --admonitionInfoBg: hsl(197 37% 90%);
+  --admonitionInfoBorder: hsl(197 37% 24%);
+  --admonitionCautionBg: hsl(43 74% 90%);
+  --admonitionCautionBorder: hsl(43 74% 66%);
+  --admonitionDangerBg: hsl(0 84.2% 90%);
+  --admonitionDangerBorder: hsl(0 84.2% 60.2%);
+  --admonitionNoteBg: hsl(0 0% 96.1%);
+  --admonitionNoteBorder: hsl(0 0% 89.8%);
+
+  font-family: var(--font-sans);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  color: var(--baseText);
+  background: var(--baseBase);
+}
+
+/* Accessibility improvements */
+.mdx-editor {
+  /* Focus visibility */
+  --focus-ring: 0 0 0 2px var(--accentSolid);
+  
+  /* Contrast for readability */
+  --toolbar-text: var(--baseText);
+  --toolbar-background: var(--baseBase);
+  --toolbar-border: var(--baseBorder);
+  
+  /* Button states */
+  --button-hover: var(--baseBgHover);
+  --button-active: var(--baseBgActive);
+  --button-focus: var(--focus-ring);
+}
+
+/* Keyboard focus visibility */
+.mdx-editor button:focus-visible,
+.mdx-editor [role="button"]:focus-visible,
+.mdx-editor [role="textbox"]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Button states */
+.mdx-editor button[aria-pressed="true"] {
+  background: var(--accentBgActive);
+  color: var(--accentText);
+}
+
+/* Dropdown menu accessibility */
+.mdx-editor [role="listbox"] {
+  border: 1px solid var(--baseBorder);
+  background: var(--baseBase);
+  color: var(--baseText);
+}
+
+.mdx-editor [role="option"]:hover {
+  background: var(--baseBgHover);
+}
+
+.mdx-editor [role="option"][aria-selected="true"] {
+  background: var(--accentBgActive);
+  color: var(--accentText);
+}
+
+/* Additional accessibility features */
+.mdx-editor [role="toolbar"] {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--baseBorder);
+}
+
+.mdx-editor [role="toolbar"] button {
+  padding: 0.25rem 0.5rem;
+  margin: 0 0.125rem;
+  border-radius: 0.25rem;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.mdx-editor [role="toolbar"] button:hover {
+  background: var(--button-hover);
+}
+
+.mdx-editor [role="toolbar"] button:active {
+  background: var(--button-active);
+}
+
+/* Typography overrides */
+.mdx-editor .prose {
+  font-family: var(--font-sans);
+  line-height: 1.75;
+}
+
+.mdx-editor .prose h1,
+.mdx-editor .prose h2,
+.mdx-editor .prose h3,
+.mdx-editor .prose h4,
+.mdx-editor .prose h5,
+.mdx-editor .prose h6 {
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: 2em;
+  margin-bottom: 1em;
+}
+
+.mdx-editor .prose ul,
+.mdx-editor .prose ol {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  padding-left: 1.5em;
+}
+
+.mdx-editor .prose li {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.mdx-editor .prose blockquote {
+  font-style: italic;
+  border-left: 4px solid var(--baseBorder);
+  padding-left: 1em;
+  margin: 1.5em 0;
+}
+
+.mdx-editor .prose code {
+  font-family: var(--font-mono);
+  background: var(--baseBgSubtle);
+  padding: 0.2em 0.4em;
+  border-radius: 0.25em;
+  font-size: 0.875em;
+}
+
+.mdx-editor .prose pre {
+  background: var(--baseBgSubtle);
+  padding: 1em;
+  border-radius: 0.5em;
+  overflow-x: auto;
+}
+
+.mdx-editor .prose pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.875em;
+  color: inherit;
+}
+
+/* Improve code block visibility */
+.mdx-editor pre {
+  background: var(--baseBgSubtle);
+  border: 1px solid var(--baseBorder);
+  border-radius: 0.25rem;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+/* Improve table accessibility */
+.mdx-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.mdx-editor th,
+.mdx-editor td {
+  border: 1px solid var(--baseBorder);
+  padding: 0.5rem;
+  text-align: left;
+}

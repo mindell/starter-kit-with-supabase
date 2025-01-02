@@ -2,8 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const updateSession = async (request: NextRequest) => {
-  // This `try/catch` block is only here for the interactive tutorial.
-  // Feel free to remove once you have Supabase connected.
   try {
     // Create an unmodified response
     let response = NextResponse.next({
@@ -17,42 +15,109 @@ export const updateSession = async (request: NextRequest) => {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll() {
-            return request.cookies.getAll();
+          get(name: string) {
+            return request.cookies.get(name)?.value;
           },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) =>
-              request.cookies.set(name, value),
-            );
+          set(name: string, value: string, options: any) {
+            request.cookies.set(name, value);
             response = NextResponse.next({
-              request,
+              request: {
+                headers: request.headers,
+              },
             });
-            cookiesToSet.forEach(({ name, value, options }) =>
-              response.cookies.set(name, value, options),
-            );
+            response.cookies.set(name, value, options);
+          },
+          remove(name: string, options: any) {
+            request.cookies.set(name, '');
+            response = NextResponse.next({
+              request: {
+                headers: request.headers,
+              },
+            });
+            response.cookies.set(name, '', options);
           },
         },
       },
     );
 
-    // This will refresh session if expired - required for Server Components
-    // https://supabase.com/docs/guides/auth/server-side/nextjs
-    const user = await supabase.auth.getUser();
+    // Refresh session if expired
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-    // protected routes
-    if (request.nextUrl.pathname.startsWith("/protected") && user.error) {
-      return NextResponse.redirect(new URL("/sign-in", request.url));
+    // Check if user is authenticated
+    if (userError) {
+      // If accessing protected routes, redirect to sign-in
+      if (request.nextUrl.pathname.startsWith('/admin') ||
+          request.nextUrl.pathname.startsWith('/editor') ||
+          request.nextUrl.pathname.startsWith('/author')) {
+        return NextResponse.redirect(new URL("/sign-in", request.url));
+      }
+      return response;
     }
 
-    if (request.nextUrl.pathname === "/" && !user.error) {
-      return NextResponse.redirect(new URL("/protected", request.url));
+    // Get user role
+    const { data: roleData, error: roleError } = await supabase
+      .from('roles_assignment')
+      .select(`
+        *,
+        user_roles (
+          *
+        )
+      `)
+      .eq('user_id', user.id)
+      .single();
+
+    console.log('Role Query Result:', { roleData, roleError }); // Debug log
+    console.log('User ID:', user.id); // Debug log
+
+    const role = roleData?.user_roles?.role_name;
+
+    console.log('User Role:', role); // For debugging
+
+    // Role-based access control
+    if (request.nextUrl.pathname.startsWith('/admin/roles') && role !== 'super_admin') {
+      console.log('Unauthorized: Requires super_admin role'); // For debugging
+      return NextResponse.redirect(new URL("/unauthorized", request.url));
+    }
+
+    if (request.nextUrl.pathname.startsWith('/admin') && 
+        !['super_admin', 'admin'].includes(role as string)) {
+      console.log('Unauthorized: Requires admin or super_admin role'); // For debugging
+      return NextResponse.redirect(new URL("/unauthorized", request.url));
+    }
+
+    if (request.nextUrl.pathname.startsWith('/editor') && 
+        !['super_admin', 'admin', 'editor'].includes(role as string)) {
+      console.log('Unauthorized: Requires editor, admin or super_admin role'); // For debugging
+      return NextResponse.redirect(new URL("/unauthorized", request.url));
+    }
+
+    if (request.nextUrl.pathname.startsWith('/author') && 
+        !['super_admin', 'admin', 'editor', 'author'].includes(role as string)) {
+      console.log('Unauthorized: Requires author, editor, admin or super_admin role'); // For debugging
+      return NextResponse.redirect(new URL("/unauthorized", request.url));
+    }
+
+    // Redirect authenticated users from public pages
+    if (request.nextUrl.pathname === "/" && user) {
+      switch(role) {
+        case 'super_admin':
+        case 'admin':
+          return NextResponse.redirect(new URL("/admin", request.url));
+        case 'editor':
+          return NextResponse.redirect(new URL("/editor", request.url));
+        case 'author':
+          return NextResponse.redirect(new URL("/author", request.url));
+        default:
+          return NextResponse.redirect(new URL("/unauthorized", request.url));
+      }
     }
 
     return response;
   } catch (e) {
-    // If you are here, a Supabase client could not be created!
-    // This is likely because you have not set up environment variables.
-    // Check out http://localhost:3000 for Next Steps.
+    console.error('Middleware Error:', e); // For debugging
     return NextResponse.next({
       request: {
         headers: request.headers,
