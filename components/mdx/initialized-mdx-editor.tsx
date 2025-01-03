@@ -1,16 +1,26 @@
 'use client'
 
 import type { ForwardedRef } from 'react'
+import { MDXEditor } from '@mdxeditor/editor'
 import {
+  toolbarPlugin,
+  UndoRedo,
+  BoldItalicUnderlineToggles,
+  BlockTypeSelect,
+  CreateLink,
+  InsertTable,
+  InsertThematicBreak,
+  ListsToggle,
+  Separator,
+  InsertImage,
+  CodeToggle,
+  ConditionalContents,
+  DiffSourceToggleWrapper,
   headingsPlugin,
   listsPlugin,
   quotePlugin,
   thematicBreakPlugin,
   markdownShortcutPlugin,
-  MDXEditor,
-  type MDXEditorMethods,
-  type MDXEditorProps,
-  toolbarPlugin,
   linkPlugin,
   linkDialogPlugin,
   imagePlugin,
@@ -20,9 +30,52 @@ import {
   diffSourcePlugin,
   directivesPlugin,
   frontmatterPlugin,
-  KitchenSinkToolbar
+  type MDXEditorMethods,
+  type MDXEditorProps,
 } from '@mdxeditor/editor'
-import '@/styles/mdx-editor.css'
+
+// Custom Toolbar Component
+const TwoRowToolbar = () => (
+  <div className="flex flex-col space-y-2 p-2 border-b border-gray-200">
+    {/* First Row */}
+    <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-1">
+        <UndoRedo />
+        <Separator />
+        <BoldItalicUnderlineToggles />
+        <Separator />
+        <BlockTypeSelect />
+      </div>
+    </div>
+    
+    {/* Second Row */}
+    <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-1">
+        <CreateLink />
+        <InsertImage />
+        <InsertTable />
+        <Separator />
+        <ListsToggle />
+        <CodeToggle />
+        <InsertThematicBreak />
+        <DiffSourceToggleWrapper>
+          <ConditionalContents
+            options={[
+              {
+                when: (editor) => editor?.editorType === 'codeblock',
+                contents: () => (
+                  <>
+                    {/* Code-specific controls here if needed */}
+                  </>
+                )
+              }
+            ]}
+          />
+        </DiffSourceToggleWrapper>
+      </div>
+    </div>
+  </div>
+)
 
 // Only import this to the next file
 export default function InitializedMDXEditor({
@@ -35,7 +88,7 @@ export default function InitializedMDXEditor({
         plugins={[
           // Toolbar
           toolbarPlugin({
-            toolbarContents: () => <KitchenSinkToolbar />
+            toolbarContents: () => <TwoRowToolbar />
           }),
           
           // Core plugins
@@ -70,7 +123,6 @@ export default function InitializedMDXEditor({
         contentEditableClassName="prose max-w-none"
         className="mdx-editor"
         aria-label="MDX Editor"
-        role="textbox"
         aria-multiline="true"
       />
     </div>

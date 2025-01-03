@@ -66,11 +66,11 @@ export const updateSession = async (request: NextRequest) => {
           *
         )
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', user?.id)
       .single();
 
     console.log('Role Query Result:', { roleData, roleError }); // Debug log
-    console.log('User ID:', user.id); // Debug log
+    console.log('User ID:', user?.id); // Debug log
 
     const role = roleData?.user_roles?.role_name;
 

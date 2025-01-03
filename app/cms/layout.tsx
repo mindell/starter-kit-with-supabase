@@ -11,10 +11,10 @@ export default async function CMSLayout({
 
   // Get session
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     return redirect("/sign-in")
   }
 
@@ -26,7 +26,7 @@ export default async function CMSLayout({
         role_name
       )
     `)
-    .eq("user_id", session.user.id)
+    .eq("user_id", user?.id)
     .single()
 
   const userRole = roleData?.user_roles?.role_name

@@ -44,7 +44,7 @@ const postFormSchema = z.object({
     .string()
     .max(500, "Excerpt must be less than 500 characters")
     .optional(),
-  status: z.enum(["draft", "published", "archived"]),
+  status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]),
   categories: z.array(z.string()).min(1, "Select at least one category"),
   tags: z.array(z.string()),
   seo_title: z
@@ -62,7 +62,7 @@ type PostFormValues = z.infer<typeof postFormSchema>
 interface PostFormProps {
   categories: { id: string; name: string }[]
   tags: { id: string; name: string }[]
-  onSubmit: (data: PostFormValues) => Promise<void>
+  onSubmit: (formData: FormData) => Promise<void>
   defaultValues?: any
 }
 
@@ -82,7 +82,7 @@ export function PostForm({
       slug: defaultValues?.slug || "",
       content: defaultValues?.content || "",
       excerpt: defaultValues?.excerpt || "",
-      status: defaultValues?.status || "draft",
+      status: defaultValues?.status || "DRAFT",
       seo_title: defaultValues?.seo_title || "",
       seo_description: defaultValues?.seo_description || "",
       categories: defaultValues?.categories || [],
@@ -94,13 +94,30 @@ export function PostForm({
   const handleSubmit = async (data: PostFormValues) => {
     try {
       setIsSubmitting(true)
-      await onSubmit(data)
+      console.log('Form values before FormData:', data);
+      
+      // Create FormData object
+      const formData = new FormData()
+      Object.entries(data).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          console.log(`Array field ${key}:`, value);
+          value.forEach((item) => {
+            console.log(`Adding ${key} item:`, item);
+            formData.append(key, item)
+          })
+        } else {
+          console.log(`Adding ${key}:`, value);
+          formData.append(key, value || '')
+        }
+      })
+      
+      await onSubmit(formData)
       router.push("/cms/posts")
       router.refresh()
     } catch (error) {
       console.error("Error submitting post:", error)
-    } finally {
       setIsSubmitting(false)
+      // Handle error appropriately
     }
   }
 
@@ -217,9 +234,9 @@ export function PostForm({
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="published">Published</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
+                  <SelectItem value="DRAFT">Draft</SelectItem>
+                  <SelectItem value="PUBLISHED">Published</SelectItem>
+                  <SelectItem value="ARCHIVED">Archived</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -236,12 +253,18 @@ export function PostForm({
               <FormLabel>Categories</FormLabel>
               <FormControl>
                 <MultiSelect
-                  selected={field.value}
                   options={categories.map((cat) => ({
-                    value: cat.id,
                     label: cat.name,
+                    value: cat.id,
                   }))}
-                  onChange={field.onChange}
+                  onValueChange={(values) => {
+                    console.log('Selected category values:', values);
+                    field.onChange(values);
+                  }}
+                  defaultValue={field.value}
+                  variant="inverted"
+                  animation={2}
+                  maxCount={3}
                   placeholder="Select categories"
                 />
               </FormControl>
@@ -259,12 +282,18 @@ export function PostForm({
               <FormLabel>Tags</FormLabel>
               <FormControl>
                 <MultiSelect
-                  selected={field.value}
                   options={tags.map((tag) => ({
-                    value: tag.id,
                     label: tag.name,
+                    value: tag.id,
                   }))}
-                  onChange={field.onChange}
+                  onValueChange={(values) => {
+                    console.log('Selected tag values:', values);
+                    field.onChange(values);
+                  }}
+                  defaultValue={field.value}
+                  variant="inverted"
+                  animation={2}
+                  maxCount={3}
                   placeholder="Select tags"
                 />
               </FormControl>

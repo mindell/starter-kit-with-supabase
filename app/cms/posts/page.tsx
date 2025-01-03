@@ -18,40 +18,42 @@ export default async function PostsPage() {
 
   // Get user session
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+  } = await supabase.auth.getUser()
 
   // Get user role
   const { data: roleData } = await supabase
     .from("roles_assignment")
     .select(`
+      *,
       user_roles (
         role_name
       )
     `)
-    .eq("user_id", session?.user.id)
+    .eq("user_id", user?.id)
     .single()
 
   const userRole = roleData?.user_roles?.role_name
-
+  
   // Get posts with author and category information
-  const { data: posts } = await supabase
+  const { data: posts, error } = await supabase
     .from("posts")
     .select(`
       *,
-      author:author_id(
-        email,
-        profiles(full_name)
+      author:author_profiles!posts_author_profiles_fkey (
+        display_name,
+        avatar_url,
+        email
       ),
-      categories:post_categories(
+      categories:post_categories (
         category:categories(name)
       )
     `)
     .order("created_at", { ascending: false })
-
+   console.log('posts', posts, error);
   // If user is author, only show their posts
   const filteredPosts = userRole === "author"
-    ? posts?.filter(post => post.author_id === session?.user.id)
+    ? posts?.filter(post => post.author?.email === user?.email)
     : posts
 
   const getStatusColor = (status: string) => {
@@ -104,7 +106,7 @@ export default async function PostsPage() {
               <TableRow key={post.id}>
                 <TableCell className="font-medium">{post.title}</TableCell>
                 <TableCell>
-                  {post.author?.profiles?.[0]?.full_name || post.author?.email}
+                  {post.author?.display_name || 'Anonymous'}
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1 flex-wrap">
@@ -126,15 +128,15 @@ export default async function PostsPage() {
                 </TableCell>
                 <TableCell>{formatDate(post.created_at)}</TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Link href={`/cms/posts/${post.id}/edit`}>
-                      <Button variant="ghost" size="icon">
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                    </Link>
+                  <div className="flex gap-2">
                     <Link href={`/cms/posts/${post.id}`}>
                       <Button variant="ghost" size="icon">
                         <Eye className="w-4 h-4" />
+                      </Button>
+                    </Link>
+                    <Link href={`/cms/posts/${post.id}/edit`}>
+                      <Button variant="ghost" size="icon">
+                        <Edit className="w-4 h-4" />
                       </Button>
                     </Link>
                   </div>
