@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { HomeIcon, UsersIcon, ShieldCheckIcon, CogIcon, FileText } from "lucide-react"
 
 async function AdminLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies()
@@ -36,7 +37,7 @@ async function AdminLayout({ children }: { children: ReactNode }) {
   const { data: roleData } = await supabase
     .from("roles_assignment")
     .select(`
-      role_id,
+      *,
       user_roles!inner (
         role_name
       )
@@ -50,6 +51,14 @@ async function AdminLayout({ children }: { children: ReactNode }) {
     redirect("/unauthorized")
   }
 
+  const navigation = [
+    { name: 'Dashboard', href: '/admin', icon: HomeIcon },
+    { name: 'Users', href: '/admin/users', icon: UsersIcon },
+    { name: 'Roles', href: '/admin/roles', icon: ShieldCheckIcon },
+    { name: 'Settings', href: '/admin/settings', icon: CogIcon },
+    { name: 'API Docs', href: '/admin/api-docs', icon: FileText },
+  ];
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -59,20 +68,15 @@ async function AdminLayout({ children }: { children: ReactNode }) {
               <span className="font-bold">Admin Dashboard</span>
             </Link>
             <nav className="flex items-center space-x-6 text-sm font-medium">
-              <Link
-                href="/admin/users"
-                className="transition-colors hover:text-foreground/80"
-              >
-                Users
-              </Link>
-              {role === "super_admin" && (
+              {navigation.map((item) => (
                 <Link
-                  href="/admin/roles"
+                  key={item.name}
+                  href={item.href}
                   className="transition-colors hover:text-foreground/80"
                 >
-                  Roles
+                  {item.name}
                 </Link>
-              )}
+              ))}
             </nav>
           </div>
           <div className="ml-auto flex items-center space-x-4">

@@ -1,7 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/utils/supabase/middleware";
+import { apiMiddleware } from "@/utils/api/middleware";
 
 export async function middleware(request: NextRequest) {
+  // Handle API routes
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    return apiMiddleware(request, async () => NextResponse.next());
+  }
+
+  // Handle regular routes
   const res = await updateSession(request);
   
   // Get response from updateSession if it's a redirect
@@ -14,6 +21,7 @@ export async function middleware(request: NextRequest) {
     '/admin',           // Super Admin and Admin only
     '/admin/roles',     // Super Admin only
     '/admin/users',     // Super Admin and Admin only
+    '/admin/settings',  // Super Admin only
     '/editor',          // Editor and above
     '/author',          // Author and above
     '/cms',             // CMS

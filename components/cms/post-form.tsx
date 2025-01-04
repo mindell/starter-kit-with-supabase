@@ -44,7 +44,7 @@ const postFormSchema = z.object({
     .string()
     .max(500, "Excerpt must be less than 500 characters")
     .optional(),
-  status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]),
+  status: z.enum(["draft", "published", "archived"]),
   categories: z.array(z.string()).min(1, "Select at least one category"),
   tags: z.array(z.string()),
   seo_title: z
@@ -82,7 +82,7 @@ export function PostForm({
       slug: defaultValues?.slug || "",
       content: defaultValues?.content || "",
       excerpt: defaultValues?.excerpt || "",
-      status: defaultValues?.status || "DRAFT",
+      status: defaultValues?.status || "draft",
       seo_title: defaultValues?.seo_title || "",
       seo_description: defaultValues?.seo_description || "",
       categories: defaultValues?.categories || [],
@@ -234,9 +234,9 @@ export function PostForm({
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="DRAFT">Draft</SelectItem>
-                  <SelectItem value="PUBLISHED">Published</SelectItem>
-                  <SelectItem value="ARCHIVED">Archived</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="published">Published</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
