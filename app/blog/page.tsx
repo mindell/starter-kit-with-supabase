@@ -1,5 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { Metadata } from 'next'
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
 
 export const metadata: Metadata = {
   title: 'Blog',
@@ -33,6 +41,18 @@ export default async function BlogPage() {
 
   return (
     <div className="container py-8 mx-auto">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/">Home</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Blog</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <h1 className="mb-8 text-4xl font-bold">Blog</h1>
       <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
         {posts?.map((post) => (

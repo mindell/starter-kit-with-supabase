@@ -69,6 +69,7 @@ async function createPost(formData: FormData) {
       author_id: user.id,
       seo_title: formValues.seo_title || null,
       seo_description: formValues.seo_description || null,
+      published_at: formValues.status === 'published' ? new Date().toISOString() : null,
     })
     .select()
     .single()

@@ -3,6 +3,16 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { serialize } from 'next-mdx-remote/serialize'
+import { MDXContent } from '@/components/mdx-content'
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
 
 // Create a Supabase client for static generation
 const supabase = createClient(
@@ -128,8 +138,60 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
     notFound()
   }
 
+  // Serialize MDX content
+  const serializedContent = await serialize(post.content, {
+    mdxOptions: {
+      development: process.env.NODE_ENV === 'development'
+    }
+  })
+
+  // Generate article structured data
+  const articleStructuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    description: post.excerpt,
+    image: post.featured_image,
+    datePublished: post.published_at,
+    dateModified: post.updated_at,
+    author: {
+      '@type': 'Person',
+      name: post.author?.display_name,
+      image: post.author?.avatar_url,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: process.env.NEXT_PUBLIC_SITE_NAME || 'Your Site Name',
+      logo: {
+        '@type': 'ImageObject',
+        url: `${process.env.NEXT_PUBLIC_BASE_URL}/opengraph-image.png`,
+      },
+    },
+  }
+
   return (
     <article className="container py-8 mx-auto">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleStructuredData) }}
+      />
+
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/">Home</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/blog">Blog</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{post.title}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <header className="mb-8">
         <h1 className="mb-2 text-4xl font-bold">{post.title}</h1>
         {post.excerpt && (
@@ -148,9 +210,11 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
               <span>{post.author.display_name}</span>
             </div>
           )}
-          <time dateTime={post.published_at} className="text-muted-foreground">
-            {new Date(post.published_at).toLocaleDateString()}
-          </time>
+          {post.published_at && (
+            <time dateTime={post.published_at} className="text-muted-foreground">
+              {new Date(post.published_at).toLocaleDateString()}
+            </time>
+          )}
         </div>
       </header>
 
@@ -162,7 +226,9 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
         />
       )}
 
-      <div className="prose prose-lg max-w-none" dangerouslySetInnerHTML={{ __html: post.content }} />
+      <div className="prose prose-lg max-w-none">
+        <MDXContent serializedContent={serializedContent} />
+      </div>
 
       <footer className="mt-8 pt-8 border-t">
         <div className="flex flex-wrap gap-2">

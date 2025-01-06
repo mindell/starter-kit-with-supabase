@@ -90,6 +90,9 @@ export default async function PostEditPage({
         seo_title,
         seo_description,
         updated_at: new Date().toISOString(),
+        published_at: status.toLowerCase() === 'published' 
+          ? (post.published_at || new Date().toISOString()) // Keep existing published_at if exists, otherwise set new date
+          : null, // Set to null if not published
       })
       .eq("id", params.id)
 
