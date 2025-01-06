@@ -48,6 +48,12 @@ export function NavigationMenu({ userRole }: NavigationMenuProps) {
       roles: ["super_admin", "admin", "editor", "author"],
     },
     {
+      name: "API Tokens",
+      href: "/cms/tokens",
+      icon: Settings,
+      roles: ["super_admin", "admin"],
+    },
+    {
       name: "Analytics",
       href: "/cms/analytics",
       icon: PieChart,

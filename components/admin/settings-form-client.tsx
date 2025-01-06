@@ -178,45 +178,50 @@ export default function SettingsFormClient({ settings, rateLimits, endpoints }: 
           </TableHeader>
           <TableBody>
             {rateLimits.map((limit) => (
-              <TableRow key={limit.role_id}>
-                <TableCell>{limit.user_roles?.role_name}</TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    defaultValue={limit.requests_per_minute}
-                    disabled={loading}
-                    onBlur={(e) =>
-                      updateRateLimit(limit.role_id, {
-                        requests_per_minute: parseInt(e.target.value),
-                      })
-                    }
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    defaultValue={limit.requests_per_hour}
-                    disabled={loading}
-                    onBlur={(e) =>
-                      updateRateLimit(limit.role_id, {
-                        requests_per_hour: parseInt(e.target.value),
-                      })
-                    }
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    defaultValue={limit.requests_per_day}
-                    disabled={loading}
-                    onBlur={(e) =>
-                      updateRateLimit(limit.role_id, {
-                        requests_per_day: parseInt(e.target.value),
-                      })
-                    }
-                  />
-                </TableCell>
-              </TableRow>
+              <>
+                {limit.user_roles && 
+                    <TableRow key={limit.role_id}>
+                    <TableCell>{limit.user_roles?.role_name}</TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        defaultValue={limit.requests_per_minute}
+                        disabled={loading}
+                        onBlur={(e) =>
+                          updateRateLimit(limit.role_id, {
+                            requests_per_minute: parseInt(e.target.value),
+                          })
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        defaultValue={limit.requests_per_hour}
+                        disabled={loading}
+                        onBlur={(e) =>
+                          updateRateLimit(limit.role_id, {
+                            requests_per_hour: parseInt(e.target.value),
+                          })
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        defaultValue={limit.requests_per_day}
+                        disabled={loading}
+                        onBlur={(e) =>
+                          updateRateLimit(limit.role_id, {
+                            requests_per_day: parseInt(e.target.value),
+                          })
+                        }
+                      />
+                    </TableCell>
+                  </TableRow>
+                }
+              </>
+              
             ))}
           </TableBody>
         </Table>

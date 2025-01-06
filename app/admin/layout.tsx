@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { HomeIcon, UsersIcon, ShieldCheckIcon, CogIcon, FileText } from "lucide-react"
+import { HomeIcon, UsersIcon, ShieldCheckIcon, CogIcon, FileText, BeakerIcon } from "lucide-react"
 
 async function AdminLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies()
@@ -57,6 +57,9 @@ async function AdminLayout({ children }: { children: ReactNode }) {
     { name: 'Roles', href: '/admin/roles', icon: ShieldCheckIcon },
     { name: 'Settings', href: '/admin/settings', icon: CogIcon },
     { name: 'API Docs', href: '/admin/api-docs', icon: FileText },
+    ...(role === 'super_admin' ? [
+      { name: 'API Tester', href: '/admin/api-docs/test', icon: BeakerIcon }
+    ] : [])
   ];
 
   return (
@@ -72,8 +75,9 @@ async function AdminLayout({ children }: { children: ReactNode }) {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className="transition-colors hover:text-foreground/80"
+                  className="transition-colors hover:text-foreground/80 flex items-center gap-1"
                 >
+                  <item.icon className="h-4 w-4" />
                   {item.name}
                 </Link>
               ))}

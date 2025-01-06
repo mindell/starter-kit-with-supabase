@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { apiMiddleware } from '@/utils/api/middleware';
 
-
 export async function GET(request: NextRequest) {
   return apiMiddleware(request, async () => {
     const supabase = createServerClient(
@@ -29,15 +28,59 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('posts')
       .select(`
-        *,
-        author:profiles(*),
-        categories:post_categories(categories(*)),
-        tags:post_tags(tags(*))
-      `)
-      .eq('status', status)
-      .order('published_at', { ascending: false })
-      .range((page - 1) * limit, page * limit - 1);
+        id,
+        title,
+        content,
+        status,
+        published_at,
+        created_at,
+        updated_at,
+        author:author_profiles!posts_author_profiles_fkey (
+          author_id,
+          display_name,
+          avatar_url
+        ),
+        categories:post_categories (
+          category:categories (
+            id,
+            name,
+            slug
+          )
+        ),
+        tags:post_tags (
+          tag:tags (
+            id,
+            name,
+            slug
+          )
+        )
+      `);
 
+    // If user is authenticated, handle user-specific data
+    const user = (request as any).user;
+    const userRoles = (request as any).userRoles || [];
+    const isAdmin = userRoles.includes('admin');
+    const path = request.nextUrl.pathname;
+
+    if (path.endsWith('/my')) {
+      // User's own posts
+      if (!user) {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      query = query.eq('author_id', user.id);
+    } else {
+      // Public posts or filtered by role
+      if (status === 'published' || isAdmin) {
+        query = query.eq('status', status);
+      } else {
+        // Non-admin users can only see their own non-published posts
+        query = query
+          .eq('status', status)
+          .eq('author_id', user?.id || '');
+      }
+    }
+
+    // Apply filters
     if (category) {
       query = query.contains('categories', [{ category_id: category }]);
     }
@@ -46,10 +89,18 @@ export async function GET(request: NextRequest) {
       query = query.contains('tags', [{ tag_id: tag }]);
     }
 
+    // Apply pagination
+    query = query
+      .order('published_at', { ascending: false })
+      .range((page - 1) * limit, page * limit - 1);
+
     const { data: posts, error, count } = await query;
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({

@@ -28,33 +28,13 @@ interface CacheConfig {
   ttl: number;
 }
 
-export async function getRateLimits(supabase: any, userId: string): Promise<{
-  requestsPerMinute: number;
-  requestsPerHour: number;
-  requestsPerDay: number;
-} | null> {
-  const { data: userRole } = await supabase
-    .from('roles_assignment')
-    .select('role_id')
-    .eq('user_id', userId)
-    .single();
-
-  if (!userRole) return null;
-
-  const { data: rateLimits } = await supabase
-    .from('api_rate_limits')
-    .select('*')
-    .eq('role_id', userRole.role_id)
-    .single();
-
-  return rateLimits;
-}
-
 export async function validateRoleAccess(
   supabase: any,
   userId: string,
   requiredRoles: string[]
 ): Promise<boolean> {
+  if (!requiredRoles.length) return true;
+  
   const { data: userRoles } = await supabase
     .from('roles_assignment')
     .select('user_roles(role_name)')
@@ -64,41 +44,6 @@ export async function validateRoleAccess(
 
   const userRoleNames = userRoles.map((r: any) => r.user_roles.role_name);
   return requiredRoles.some(role => userRoleNames.includes(role));
-}
-
-export async function cacheData(
-  key: string,
-  data: any,
-  config: CacheConfig
-): Promise<void> {
-  if (config.strategy === 'in_memory') {
-    memoryCache.set(key, {
-      data,
-      timestamp: Date.now() + config.ttl * 1000,
-    });
-  } else if (config.strategy === 'redis' && redis) {
-    await redis.set(key, JSON.stringify(data), {
-      ex: config.ttl,
-    });
-  }
-}
-
-export async function getCachedData(
-  key: string,
-  config: CacheConfig
-): Promise<any | null> {
-  if (config.strategy === 'in_memory') {
-    const cached = memoryCache.get(key);
-    if (cached && cached.timestamp > Date.now()) {
-      return cached.data;
-    }
-    memoryCache.delete(key);
-    return null;
-  } else if (config.strategy === 'redis' && redis) {
-    const cached = await redis.get(key);
-    return cached ? JSON.parse(cached as string) : null;
-  }
-  return null;
 }
 
 export async function validateRateLimit(
@@ -157,17 +102,55 @@ export async function validateRateLimit(
   }
 
   cached.data.count++;
-  memoryCache.set(key, {
-    data: cached.data,
-    timestamp: cached.timestamp,
-  });
-  
   return {
     success: true,
     limit: limits.requestsPerMinute,
     remaining: limits.requestsPerMinute - cached.data.count,
     reset: cached.data.start + windowMs,
   };
+}
+
+export async function cacheData(
+  key: string,
+  data: any,
+  config: CacheConfig
+): Promise<void> {
+  if (config.strategy === 'redis' && redis) {
+    await redis.set(key, JSON.stringify(data), { ex: config.ttl });
+  } else if (config.strategy === 'in_memory') {
+    memoryCache.set(key, {
+      data,
+      timestamp: Date.now() + config.ttl * 1000,
+    });
+  }
+}
+
+export async function getCachedData(
+  key: string,
+  config: CacheConfig
+): Promise<any | null> {
+  if (config.strategy === 'redis' && redis) {
+    const data = await redis.get(key);
+    return data ? JSON.parse(data as string) : null;
+  } else if (config.strategy === 'in_memory') {
+    const cached = memoryCache.get(key);
+    if (cached && Date.now() < cached.timestamp) {
+      return cached.data;
+    }
+    memoryCache.delete(key);
+  }
+  return null;
+}
+
+export async function getUserRoles(supabase: any, userId: string) {
+  const { data: userRoles } = await supabase
+    .from('roles_assignment')
+    .select('user_roles(role_name)')
+    .eq('user_id', userId);
+
+  if (!userRoles?.length) return [];
+
+  return userRoles.map((r: any) => r.user_roles.role_name);
 }
 
 export async function apiMiddleware(
@@ -188,25 +171,21 @@ export async function apiMiddleware(
     }
   );
 
-  // Get user from session
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user?.id) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    );
-  }
-
   // Get endpoint configuration
   const path = request.nextUrl.pathname;
+  // Normalize the path for database lookup
+  const segments = path.split('/');
+  const normalizedPath = segments
+    .map(segment => {
+      // Check if segment is a UUID or numeric ID
+      return /^[0-9a-fA-F-]+$/.test(segment) ? '{id}' : segment;
+    })
+    .join('/');
+  
   const { data: endpoint } = await supabase
     .from('api_endpoints')
     .select('*')
-    .eq('path', path)
+    .eq('path', normalizedPath)
     .eq('method', request.method)
     .single();
 
@@ -217,30 +196,56 @@ export async function apiMiddleware(
     );
   }
 
-  // Validate role access
-  if (endpoint.required_roles.length > 0) {
-    const hasAccess = await validateRoleAccess(
-      supabase,
-      user.id,
-      endpoint.required_roles
-    );
-    
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      );
+  // Get user context (even for public endpoints)
+  let user;
+  const authHeader = request.headers.get('authorization');
+  
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    const { data: { user: tokenUser }, error: tokenError } = await supabase.auth.getUser(token);
+    if (!tokenError) {
+      user = tokenUser;
+    }
+  } else {
+    const { data: { user: sessionUser }, error: sessionError } = await supabase.auth.getUser();
+    if (!sessionError) {
+      user = sessionUser;
     }
   }
 
-  // Apply rate limiting
-  const limits = endpoint.rate_limit_override || 
-    await getRateLimits(supabase, user.id);
+  // For non-public endpoints, require authentication
+  if (!endpoint.is_public) {
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
-  if (limits) {
+    // Validate role access
+    if (endpoint.required_roles.length > 0) {
+      const hasAccess = await validateRoleAccess(
+        supabase,
+        user.id,
+        endpoint.required_roles
+      );
+      
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'Insufficient permissions' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Apply rate limiting
+    const rateLimitConfig = endpoint.rate_limit_override || {
+      requestsPerMinute: 60 // Default rate limit
+    };
+
     const rateLimit = await validateRateLimit(
       `${user.id}:${path}`,
-      limits
+      rateLimitConfig
     );
 
     if (!rateLimit.success) {
@@ -261,14 +266,21 @@ export async function apiMiddleware(
     }
   }
 
+  // Add user context to request for handlers
+  (request as any).user = user;
+  (request as any).userRoles = user ? await getUserRoles(supabase, user.id) : [];
+
   // Handle caching
-  const cacheKey = `${path}:${request.method}:${user.id}`;
+  const cacheKey = endpoint.is_public ? 
+    `${path}:${request.method}:public` :
+    `${path}:${request.method}:${user?.id}`;
+
   const cacheConfig = {
     strategy: endpoint.cache_strategy,
     ttl: endpoint.cache_ttl_seconds,
   };
 
-  if (request.method === 'GET') {
+  if (request.method === 'GET' && endpoint.cache_ttl_seconds > 0) {
     const cachedData = await getCachedData(cacheKey, cacheConfig);
     if (cachedData) {
       return NextResponse.json(cachedData);
@@ -278,11 +290,20 @@ export async function apiMiddleware(
   // Execute the handler
   const response = await handler();
   
-  // Cache the response if it's a GET request
-  if (request.method === 'GET' && response.status === 200) {
-    const responseData = await response.json();
-    await cacheData(cacheKey, responseData, cacheConfig);
-    return NextResponse.json(responseData);
+  // Cache the response if it's a GET request and successful
+  if (request.method === 'GET' && endpoint.cache_ttl_seconds > 0 && response.status === 200) {
+    try {
+      // Check if response has JSON content
+      const contentType = response.headers.get('content-type');
+      if (contentType?.includes('application/json')) {
+        const clonedResponse = response.clone();
+        const responseData = await clonedResponse.json();
+        await cacheData(cacheKey, responseData, cacheConfig);
+      }
+    } catch (error) {
+      // Log error but don't fail the request
+      console.error('Error caching response:', error);
+    }
   }
 
   return response;
