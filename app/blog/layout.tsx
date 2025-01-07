@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import { BlogHeader } from '@/components/blog/header'
 
 export const metadata: Metadata = {
   title: {
@@ -25,6 +26,7 @@ export default function BlogLayout({
 }) {
   return (
     <div className="min-h-screen bg-background">
+      <BlogHeader />
       {children}
     </div>
   )

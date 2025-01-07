@@ -24,7 +24,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { MoreVertical, Pencil, Trash2, Image as ImageIcon } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { MoreVertical, Pencil, Trash2, Image as ImageIcon, Copy, Check } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -50,9 +51,11 @@ interface MediaGridProps {
 
 export function MediaGrid({ media, updateMedia, deleteMedia }: MediaGridProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [imageLoadError, setImageLoadError] = useState<Record<string, boolean>>({})
   const [editingMedia, setEditingMedia] = useState<MediaItem | null>(null)
   const [deletingMedia, setDeletingMedia] = useState<MediaItem | null>(null)
+  const [copying, setCopying] = useState<string | null>(null)
   const supabase = createClient()
 
   const formatFileSize = (bytes: number) => {
@@ -65,6 +68,27 @@ export function MediaGrid({ media, updateMedia, deleteMedia }: MediaGridProps) {
 
   const getImageUrl = (storageKey: string) => {
     return `${process.env.NEXT_PUBLIC_BUCKET_URL}/${storageKey}`
+  }
+
+  const copyToClipboard = async (item: MediaItem) => {
+    const url = getImageUrl(item.storage_key)
+    try {
+      setCopying(item.id)
+      await navigator.clipboard.writeText(url)
+      toast({
+        title: "URL Copied",
+        description: "The media URL has been copied to your clipboard.",
+      })
+    } catch (err) {
+      toast({
+        title: "Copy Failed",
+        description: "Failed to copy URL to clipboard.",
+        variant: "destructive",
+      })
+    } finally {
+      // Reset copying state after a short delay
+      setTimeout(() => setCopying(null), 1000)
+    }
   }
 
   const handleDelete = async () => {
@@ -116,6 +140,14 @@ export function MediaGrid({ media, updateMedia, deleteMedia }: MediaGridProps) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => copyToClipboard(item)}>
+                      {copying === item.id ? (
+                        <Check className="w-4 h-4 mr-2" />
+                      ) : (
+                        <Copy className="w-4 h-4 mr-2" />
+                      )}
+                      Copy URL
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setEditingMedia(item)}>
                       <Pencil className="w-4 h-4 mr-2" />
                       Edit Details

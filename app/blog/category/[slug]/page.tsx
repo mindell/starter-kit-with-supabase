@@ -144,10 +144,6 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbLink href="/blog/categories">Categories</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
             <BreadcrumbPage>{category.name}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>

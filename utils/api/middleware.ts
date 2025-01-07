@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+import {createClient} from "@/utils/supabase/server";
 import { type NextRequest, NextResponse } from "next/server";
 import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
@@ -27,6 +27,11 @@ interface CacheConfig {
   strategy: 'in_memory' | 'redis' | 'cdn';
   ttl: number;
 }
+
+// List of paths that bypass API endpoint validation
+const EXCLUDED_PATHS = [
+  '/api/search/suggestions'
+];
 
 export async function validateRoleAccess(
   supabase: any,
@@ -157,22 +162,15 @@ export async function apiMiddleware(
   request: NextRequest,
   handler: () => Promise<NextResponse>
 ) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
-        },
-        set() {},
-        remove() {},
-      },
-    }
-  );
+  const supabase = await createClient();
+  const path = request.nextUrl.pathname;
+
+  // Check if path is excluded from API endpoint validation
+  if (EXCLUDED_PATHS.includes(path)) {
+    return handler();
+  }
 
   // Get endpoint configuration
-  const path = request.nextUrl.pathname;
   // Normalize the path for database lookup
   const segments = path.split('/');
   const normalizedPath = segments

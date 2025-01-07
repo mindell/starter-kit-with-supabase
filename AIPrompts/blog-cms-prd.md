@@ -87,7 +87,6 @@ A modern, SEO-optimized Blog/CMS system built with Next.js and Supabase, replaci
 
 Code:
 ´´´´
-
 `posts
 - id: uuid
 - title: text

@@ -5,10 +5,10 @@ import { revalidatePath } from "next/cache"
 export default async function PostEditPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
   const supabase = await createClient()
-
+    const idParam = await params
   // Get post data
   const { data: post, error: postError } = await supabase
     .from("posts")
@@ -21,7 +21,7 @@ export default async function PostEditPage({
         tag:tags(*)
       )
     `)
-    .eq("id", params.id)
+    .eq("id", idParam.id)
     .single()
 
   if (postError) {
@@ -90,11 +90,9 @@ export default async function PostEditPage({
         seo_title,
         seo_description,
         updated_at: new Date().toISOString(),
-        published_at: status.toLowerCase() === 'published' 
-          ? (post.published_at || new Date().toISOString()) // Keep existing published_at if exists, otherwise set new date
-          : null, // Set to null if not published
+        published_at: status === "published" ? new Date().toISOString() : null, // Set to null if not published
       })
-      .eq("id", params.id)
+      .eq("id", idParam.id)
 
     if (postError) throw postError
 
@@ -102,7 +100,7 @@ export default async function PostEditPage({
     const { error: deleteCategoriesError } = await supabase
       .from("post_categories")
       .delete()
-      .eq("post_id", params.id)
+      .eq("post_id", idParam.id)
 
     if (deleteCategoriesError) throw deleteCategoriesError
 
@@ -111,7 +109,7 @@ export default async function PostEditPage({
         .from("post_categories")
         .insert(
           categories.map((categoryId) => ({
-            post_id: params.id,
+            post_id: idParam.id,
             category_id: categoryId,
           }))
         )
@@ -123,7 +121,7 @@ export default async function PostEditPage({
     const { error: deleteTagsError } = await supabase
       .from("post_tags")
       .delete()
-      .eq("post_id", params.id)
+      .eq("post_id", idParam.id)
 
     if (deleteTagsError) throw deleteTagsError
 
@@ -132,7 +130,7 @@ export default async function PostEditPage({
         .from("post_tags")
         .insert(
           tags.map((tagId) => ({
-            post_id: params.id,
+            post_id: idParam.id,
             tag_id: tagId,
           }))
         )
