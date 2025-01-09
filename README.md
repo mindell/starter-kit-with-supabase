@@ -83,6 +83,41 @@ If you wish to just develop locally and not deploy to Vercel, [follow the steps 
 
 6. This template comes with the default shadcn/ui style initialized. If you instead want other ui.shadcn styles, delete `components.json` and [re-install shadcn/ui](https://ui.shadcn.com/docs/installation/next)
 
+## Database Migration
+
+To set up your database schema and initial data in Supabase for the first time, follow these steps:
+
+1. Install Supabase CLI if you haven't already:
+   ```bash
+   npm install -g supabase
+   ```
+
+2. Login to Supabase CLI:
+   ```bash
+   supabase login
+   ```
+
+3. Initialize Supabase in your project (if not already initialized):
+   ```bash
+   supabase init
+   ```
+
+4. Link your project:
+   ```bash
+   supabase link --project-ref your-project-ref
+   ```
+   You can find your project ref in your Supabase project settings under "Project Settings" > "General settings"
+
+5. Push the database migrations:
+   ```bash
+   supabase db push
+   ```
+
+This will create all necessary tables, functions, and initial data in your Supabase project. If you encounter any errors, make sure:
+- You have the latest Supabase CLI version
+- Your project ref is correct
+- You have the necessary permissions in the Supabase project
+
 > Check out [the docs for Local Development](https://supabase.com/docs/guides/getting-started/local-development) to also run Supabase locally.
 
 ## Feedback and issues

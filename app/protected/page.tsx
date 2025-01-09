@@ -2,6 +2,7 @@ import FetchDataSteps from "@/components/tutorial/fetch-data-steps";
 import { createClient } from "@/utils/supabase/server";
 import { InfoIcon } from "lucide-react";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export default async function ProtectedPage() {
   const supabase = await createClient();
@@ -30,7 +31,23 @@ export default async function ProtectedPage() {
         </pre>
       </div>
       <div>
-        <h2 className="font-bold text-2xl mb-4">Next steps</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-bold text-2xl">Next steps</h2>
+          <div className="flex gap-4">
+            <Link
+              href="/cms"
+              className="text-sm px-4 py-2 bg-foreground text-background rounded hover:bg-foreground/90 transition-colors"
+            >
+              Go to CMS
+            </Link>
+            <Link
+              href="/admin"
+              className="text-sm px-4 py-2 bg-foreground text-background rounded hover:bg-foreground/90 transition-colors"
+            >
+              Go to Admin
+            </Link>
+          </div>
+        </div>
         <FetchDataSteps />
       </div>
     </div>

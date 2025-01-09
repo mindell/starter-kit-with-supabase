@@ -119,6 +119,24 @@ begin
 
     -- If no super_admin exists, assign the role to this user
     if existing_super_admin is null then
+        -- Create author profile first
+        insert into public.author_profiles (
+            author_id,
+            display_name,
+            avatar_url,
+            email,
+            updated_at
+        )
+        values (
+            new.id,
+            new.raw_user_meta_data->>'full_name',
+            new.raw_user_meta_data->>'avatar_url',
+            new.email,
+            now()
+        )
+        on conflict (author_id) do nothing;
+
+        -- Then assign super_admin role
         insert into public.roles_assignment (user_id, role_id)
         values (new.id, super_admin_role_id);
     end if;
