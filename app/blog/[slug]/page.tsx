@@ -1,6 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@/utils/supabase/server'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { serialize } from 'next-mdx-remote/serialize'
@@ -13,15 +11,14 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
+import {Category, Tag} from '@/types/blog'
 
-// Create a Supabase client for static generation
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+
 
 // Generate static params for all published posts
 export async function generateStaticParams() {
+  // Create a Supabase client for static generation
+  const supabase = await createClient(true)
   const { data: posts } = await supabase
     .from('posts')
     .select('slug')
@@ -34,6 +31,8 @@ export async function generateStaticParams() {
 
 // Generate metadata for each post
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  // Create a Supabase client for static generation
+  const supabase = await createClient(true)
   const slugParam = await params;
   const { data: post } = await supabase
     .from('posts')
@@ -58,7 +57,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     return {}
   }
 
-  const categories = post.categories?.map(c => c.category.name).join(', ')
+  const categories = post.categories?.map(({category}:Category) => category.name).join(', ')
   
   return {
     title: post.seo_title || post.title,
@@ -96,18 +95,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function BlogPost({ params }: { params: Promise<{ slug: string }> }) {
   const slugParams = await params
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
+  // Create a Supabase client for static generation
+  const supabase = await createClient()
 
   const { data: post } = await supabase
     .from('posts')
@@ -232,7 +221,7 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
 
       <footer className="mt-8 pt-8 border-t">
         <div className="flex flex-wrap gap-2">
-          {post.categories?.map(({ category }) => (
+          {post.categories?.map(({category}:Category) => (
             <a
               key={category.slug}
               href={`/blog/category/${category.slug}`}
@@ -241,7 +230,7 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
               {category.name}
             </a>
           ))}
-          {post.tags?.map(({ tag }) => (
+          {post.tags?.map(({tag}: Tag) => (
             <a
               key={tag.slug}
               href={`/blog/tag/${tag.slug}`}

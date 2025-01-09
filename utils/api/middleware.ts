@@ -2,6 +2,9 @@ import {createClient} from "@/utils/supabase/server";
 import { type NextRequest, NextResponse } from "next/server";
 import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
+import { PROTECTED_API_PATHS, 
+  PUBLIC_PATHS,
+ } from "@/utils/constants";
 
 // Initialize Redis client if configured
 let redis: Redis | null = null;
@@ -27,11 +30,6 @@ interface CacheConfig {
   strategy: 'in_memory' | 'redis' | 'cdn';
   ttl: number;
 }
-
-// List of paths that bypass API endpoint validation
-const EXCLUDED_PATHS = [
-  '/api/search/suggestions'
-];
 
 export async function validateRoleAccess(
   supabase: any,
@@ -102,7 +100,7 @@ export async function validateRateLimit(
       success: false,
       limit: limits.requestsPerMinute,
       remaining: 0,
-      reset: cached.data.start + windowMs,
+      reset: cached.timestamp,
     };
   }
 
@@ -111,198 +109,104 @@ export async function validateRateLimit(
     success: true,
     limit: limits.requestsPerMinute,
     remaining: limits.requestsPerMinute - cached.data.count,
-    reset: cached.data.start + windowMs,
+    reset: cached.timestamp,
   };
-}
-
-export async function cacheData(
-  key: string,
-  data: any,
-  config: CacheConfig
-): Promise<void> {
-  if (config.strategy === 'redis' && redis) {
-    await redis.set(key, JSON.stringify(data), { ex: config.ttl });
-  } else if (config.strategy === 'in_memory') {
-    memoryCache.set(key, {
-      data,
-      timestamp: Date.now() + config.ttl * 1000,
-    });
-  }
-}
-
-export async function getCachedData(
-  key: string,
-  config: CacheConfig
-): Promise<any | null> {
-  if (config.strategy === 'redis' && redis) {
-    const data = await redis.get(key);
-    return data ? JSON.parse(data as string) : null;
-  } else if (config.strategy === 'in_memory') {
-    const cached = memoryCache.get(key);
-    if (cached && Date.now() < cached.timestamp) {
-      return cached.data;
-    }
-    memoryCache.delete(key);
-  }
-  return null;
-}
-
-export async function getUserRoles(supabase: any, userId: string) {
-  const { data: userRoles } = await supabase
-    .from('roles_assignment')
-    .select('user_roles(role_name)')
-    .eq('user_id', userId);
-
-  if (!userRoles?.length) return [];
-
-  return userRoles.map((r: any) => r.user_roles.role_name);
 }
 
 export async function apiMiddleware(
   request: NextRequest,
   handler: () => Promise<NextResponse>
 ) {
-  const supabase = await createClient();
-  const path = request.nextUrl.pathname;
+  try {
+    const path = request.nextUrl.pathname;
 
-  // Check if path is excluded from API endpoint validation
-  if (EXCLUDED_PATHS.includes(path)) {
-    return handler();
-  }
-
-  // Get endpoint configuration
-  // Normalize the path for database lookup
-  const segments = path.split('/');
-  const normalizedPath = segments
-    .map(segment => {
-      // Check if segment is a UUID or numeric ID
-      return /^[0-9a-fA-F-]+$/.test(segment) ? '{id}' : segment;
-    })
-    .join('/');
-  
-  const { data: endpoint } = await supabase
-    .from('api_endpoints')
-    .select('*')
-    .eq('path', normalizedPath)
-    .eq('method', request.method)
-    .single();
-
-  if (!endpoint || !endpoint.is_active) {
-    return NextResponse.json(
-      { error: 'Endpoint not found or inactive' },
-      { status: 404 }
+    // Check if path is public
+    const isPublicPath = PUBLIC_PATHS.some(pp => 
+      path === pp || path.startsWith(`${pp}/`)
     );
-  }
-
-  // Get user context (even for public endpoints)
-  let user;
-  const authHeader = request.headers.get('authorization');
-  
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    const { data: { user: tokenUser }, error: tokenError } = await supabase.auth.getUser(token);
-    if (!tokenError) {
-      user = tokenUser;
-    }
-  } else {
-    const { data: { user: sessionUser }, error: sessionError } = await supabase.auth.getUser();
-    if (!sessionError) {
-      user = sessionUser;
-    }
-  }
-
-  // For non-public endpoints, require authentication
-  if (!endpoint.is_public) {
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    // Validate role access
-    if (endpoint.required_roles.length > 0) {
-      const hasAccess = await validateRoleAccess(
-        supabase,
-        user.id,
-        endpoint.required_roles
-      );
-      
-      if (!hasAccess) {
-        return NextResponse.json(
-          { error: 'Insufficient permissions' },
-          { status: 403 }
-        );
-      }
+    if (isPublicPath) {
+      return handler();
     }
 
     // Apply rate limiting
-    const rateLimitConfig = endpoint.rate_limit_override || {
-      requestsPerMinute: 60 // Default rate limit
-    };
-
-    const rateLimit = await validateRateLimit(
-      `${user.id}:${path}`,
-      rateLimitConfig
-    );
+    const rateLimit = await validateRateLimit(request.ip || 'anonymous', {
+      requestsPerMinute: 60,
+    });
 
     if (!rateLimit.success) {
-      return NextResponse.json(
-        { 
-          error: 'Rate limit exceeded',
-          ...rateLimit
-        },
-        { 
+      return new NextResponse(
+        JSON.stringify({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          ...rateLimit,
+        }),
+        {
           status: 429,
           headers: {
+            'Content-Type': 'application/json',
             'X-RateLimit-Limit': rateLimit.limit.toString(),
             'X-RateLimit-Remaining': rateLimit.remaining.toString(),
             'X-RateLimit-Reset': rateLimit.reset.toString(),
-          }
+          },
         }
       );
     }
-  }
 
-  // Add user context to request for handlers
-  (request as any).user = user;
-  (request as any).userRoles = user ? await getUserRoles(supabase, user.id) : [];
+    const supabase = await createClient();
 
-  // Handle caching
-  const cacheKey = endpoint.is_public ? 
-    `${path}:${request.method}:public` :
-    `${path}:${request.method}:${user?.id}`;
+    // Check authentication
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-  const cacheConfig = {
-    strategy: endpoint.cache_strategy,
-    ttl: endpoint.cache_ttl_seconds,
-  };
-
-  if (request.method === 'GET' && endpoint.cache_ttl_seconds > 0) {
-    const cachedData = await getCachedData(cacheKey, cacheConfig);
-    if (cachedData) {
-      return NextResponse.json(cachedData);
+    if (userError) {
+      return new NextResponse(
+        JSON.stringify({
+          error: 'Unauthorized',
+          message: 'Authentication required',
+        }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
     }
-  }
 
-  // Execute the handler
-  const response = await handler();
-  
-  // Cache the response if it's a GET request and successful
-  if (request.method === 'GET' && endpoint.cache_ttl_seconds > 0 && response.status === 200) {
-    try {
-      // Check if response has JSON content
-      const contentType = response.headers.get('content-type');
-      if (contentType?.includes('application/json')) {
-        const clonedResponse = response.clone();
-        const responseData = await clonedResponse.json();
-        await cacheData(cacheKey, responseData, cacheConfig);
+    // Check API path against protected paths
+    for (const [key, config] of Object.entries(PROTECTED_API_PATHS)) {
+      if (path.startsWith(config.path)) {
+        // Validate role access
+        const hasAccess = await validateRoleAccess(supabase, user?.id as string, [...config.roles]);
+        if (!hasAccess) {
+          return new NextResponse(
+            JSON.stringify({
+              error: 'Forbidden',
+              message: 'Insufficient permissions',
+            }),
+            {
+              status: 403,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          );
+        }
+        break;
       }
-    } catch (error) {
-      // Log error but don't fail the request
-      console.error('Error caching response:', error);
     }
-  }
 
-  return response;
+    // If we get here, request is authorized
+    return handler();
+  } catch (error) {
+    console.error('API Middleware Error:', error);
+    return new NextResponse(
+      JSON.stringify({
+        error: 'Internal Server Error',
+        message: 'An unexpected error occurred',
+      }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
 }

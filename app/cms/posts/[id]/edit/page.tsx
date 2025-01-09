@@ -8,7 +8,7 @@ export default async function PostEditPage({
   params: Promise<{ id: string }>
 }) {
   const supabase = await createClient()
-    const idParam = await params
+  const idParam = await params
   // Get post data
   const { data: post, error: postError } = await supabase
     .from("posts")
@@ -64,81 +64,136 @@ export default async function PostEditPage({
     
     const supabase = await createClient()
 
+    // Get user and validate session
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("Unauthorized")
+    }
+
+    // Get user role
+    const { data: roleData } = await supabase
+      .from('roles_assignment')
+      .select(`
+        *,
+        user_roles (
+          role_name
+        )
+      `)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!roleData || !['admin', 'editor', 'author'].includes(roleData.user_roles.role_name)) {
+      throw new Error("Insufficient permissions")
+    }
+
+    // Get post ID from formData
+    const postId = formData.get("id") as string
+    if (!postId) {
+      throw new Error("Post ID is required")
+    }
+
     // Get values from formData
     const title = formData.get("title") as string
     const slug = formData.get("slug") as string
     const content = formData.get("content") as string
     const excerpt = formData.get("excerpt") as string
     const status = formData.get("status") as string
+    const scheduled_at = formData.get("scheduled_at") as string
     const seo_title = formData.get("seo_title") as string
     const seo_description = formData.get("seo_description") as string
     const categories = formData.getAll("categories") as string[]
     const tags = formData.getAll("tags") as string[]
 
+    // Validate scheduled_at if status is scheduled
+    if (status === 'scheduled') {
+      if (!scheduled_at) {
+        throw new Error("Schedule date is required for scheduled posts")
+      }
+      const scheduleDate = new Date(scheduled_at)
+      if (scheduleDate <= new Date()) {
+        throw new Error("Schedule date must be in the future")
+      }
+    }
+
     // Start a transaction
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    // Update post
-    const { error: postError } = await supabase
+    const { data: post, error: postError } = await supabase
       .from("posts")
       .update({
         title,
         slug,
         content,
         excerpt,
-        status: status.toLowerCase(),
+        status,
+        scheduled_at: status === 'scheduled' ? scheduled_at : null,
+        published_at: status === 'published' ? new Date().toISOString() : null,
         seo_title,
         seo_description,
-        updated_at: new Date().toISOString(),
-        published_at: status === "published" ? new Date().toISOString() : null, // Set to null if not published
       })
-      .eq("id", idParam.id)
+      .eq('id', postId)
+      .select()
+      .single()
 
-    if (postError) throw postError
+    if (postError) {
+      console.error("Error updating post:", postError)
+      throw new Error("Failed to update post")
+    }
 
     // Update categories
     const { error: deleteCategoriesError } = await supabase
       .from("post_categories")
       .delete()
-      .eq("post_id", idParam.id)
+      .eq("post_id", postId)
 
-    if (deleteCategoriesError) throw deleteCategoriesError
+    if (deleteCategoriesError) {
+      console.error("Error deleting categories:", deleteCategoriesError)
+      throw new Error("Failed to update categories")
+    }
 
     if (categories.length > 0) {
-      const { error: insertCategoriesError } = await supabase
+      const { error: categoriesError } = await supabase
         .from("post_categories")
         .insert(
           categories.map((categoryId) => ({
-            post_id: idParam.id,
+            post_id: postId,
             category_id: categoryId,
           }))
         )
 
-      if (insertCategoriesError) throw insertCategoriesError
+      if (categoriesError) {
+        console.error("Error adding categories:", categoriesError)
+        throw new Error("Failed to update categories")
+      }
     }
 
     // Update tags
     const { error: deleteTagsError } = await supabase
       .from("post_tags")
       .delete()
-      .eq("post_id", idParam.id)
+      .eq("post_id", postId)
 
-    if (deleteTagsError) throw deleteTagsError
+    if (deleteTagsError) {
+      console.error("Error deleting tags:", deleteTagsError)
+      throw new Error("Failed to update tags")
+    }
 
     if (tags.length > 0) {
-      const { error: insertTagsError } = await supabase
+      const { error: tagsError } = await supabase
         .from("post_tags")
         .insert(
           tags.map((tagId) => ({
-            post_id: idParam.id,
+            post_id: postId,
             tag_id: tagId,
           }))
         )
 
-      if (insertTagsError) throw insertTagsError
+      if (tagsError) {
+        console.error("Error adding tags:", tagsError)
+        throw new Error("Failed to update tags")
+      }
     }
-
-    revalidatePath("/cms/posts")
   }
 
   return (

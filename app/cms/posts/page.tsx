@@ -106,7 +106,7 @@ export default async function PostsPage() {
               <TableRow key={post.id}>
                 <TableCell className="font-medium">{post.title}</TableCell>
                 <TableCell>
-                  {post.author?.display_name || 'Anonymous'}
+                  {post.author?.display_name || post.author?.email || 'Anonymous'}
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1 flex-wrap">

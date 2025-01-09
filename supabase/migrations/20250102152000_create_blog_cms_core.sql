@@ -4,7 +4,7 @@
 -- Date: 2025-01-02
 
 -- Create enum types for post status
-create type public.post_status as enum ('draft', 'published', 'archived');
+create type public.post_status as enum ('draft', 'scheduled', 'published', 'archived');
 
 -- Create posts table
 create table public.posts (
@@ -16,6 +16,7 @@ create table public.posts (
     featured_image uuid,
     author_id uuid not null references auth.users(id),
     status public.post_status default 'draft',
+    scheduled_at timestamptz,
     published_at timestamptz,
     created_at timestamptz default now(),
     updated_at timestamptz default now(),
@@ -242,6 +243,24 @@ create trigger auto_generate_post_slug
     before insert on public.posts
     for each row
     execute function public.fn_auto_generate_slug();
+
+-- Create function to handle scheduled posts
+create or replace function handle_scheduled_posts()
+returns trigger as $$
+begin
+    if NEW.status = 'scheduled' and NEW.scheduled_at <= now() then
+        NEW.status := 'published';
+        NEW.published_at := NEW.scheduled_at;
+    end if;
+    return NEW;
+end;
+$$ language plpgsql security definer;
+
+-- Create trigger for scheduled posts
+create trigger handle_scheduled_posts
+    before insert or update on public.posts
+    for each row
+    execute function handle_scheduled_posts();
 
 -- Enable RLS on all tables
 alter table public.posts enable row level security;

@@ -30,90 +30,87 @@ async function createPost(formData: FormData) {
     .eq('user_id', user.id)
     .single()
 
-  const role = roleData?.user_roles?.role_name
-  console.log('role:', role);
-  // Check if user has permission to create posts
-  if (!['super_admin', 'admin', 'editor', 'author'].includes(role as string)) {
+  if (!roleData || !['admin', 'editor', 'author', 'super_admin'].includes(roleData.user_roles.role_name)) {
     throw new Error("Insufficient permissions")
   }
 
-  // Parse form data
-  const formValues = {
-    title: formData.get('title') as string,
-    slug: formData.get('slug') as string,
-    content: formData.get('content') as string,
-    excerpt: formData.get('excerpt') as string,
-    status: formData.get('status')?.toString().toLowerCase() as string,
-    seo_title: formData.get('seo_title') as string,
-    seo_description: formData.get('seo_description') as string,
-    categories: formData.getAll('categories') as string[],
-    tags: formData.getAll('tags') as string[],
+  // Get values from formData
+  const title = formData.get("title") as string
+  const slug = formData.get("slug") as string
+  const content = formData.get("content") as string
+  const excerpt = formData.get("excerpt") as string
+  const status = formData.get("status") as string
+  const scheduled_at = formData.get("scheduled_at") as string
+  const seo_title = formData.get("seo_title") as string
+  const seo_description = formData.get("seo_description") as string
+  const categories = formData.getAll("categories") as string[]
+  const tags = formData.getAll("tags") as string[]
+
+  // Validate scheduled_at if status is scheduled
+  if (status === 'scheduled') {
+    if (!scheduled_at) {
+      throw new Error("Schedule date is required for scheduled posts")
+    }
+    const scheduleDate = new Date(scheduled_at)
+    if (scheduleDate <= new Date()) {
+      throw new Error("Schedule date must be in the future")
+    }
   }
 
-  // Validate required fields
-  if (!formValues.title || !formValues.slug || !formValues.content || !formValues.status) {
-    throw new Error('Missing required fields')
-  }
-
-  console.log('Form values:', formValues);
-
-  // Start a transaction by using a single batch operation
+  // Start a transaction
   const { data: post, error: postError } = await supabase
     .from("posts")
     .insert({
-      title: formValues.title,
-      slug: formValues.slug,
-      content: formValues.content,
-      excerpt: formValues.excerpt || null,
-      status: formValues.status as 'draft' | 'published' | 'archived',
+      title,
+      slug,
+      content,
+      excerpt,
+      status,
+      scheduled_at: status === 'scheduled' ? scheduled_at : null,
+      published_at: status === 'published' ? new Date().toISOString() : null,
+      seo_title,
+      seo_description,
       author_id: user.id,
-      seo_title: formValues.seo_title || null,
-      seo_description: formValues.seo_description || null,
-      published_at: formValues.status === 'published' ? new Date().toISOString() : null,
     })
     .select()
     .single()
 
   if (postError) {
-    console.error('Post creation error:', postError);
-    throw new Error(`Failed to create post: ${postError.message}`)
+    console.error("Error creating post:", postError)
+    throw new Error("Failed to create post")
   }
 
-  console.log('Created post:', post);
-
-  // Insert categories if any
-  if (formValues.categories?.length > 0) {
-    const categoryInserts = formValues.categories.map((categoryId: string) => ({
-      post_id: post.id,
-      category_id: categoryId,
-    }));
-    console.log('Category inserts:', categoryInserts);
-
+  // Add categories
+  if (categories.length > 0) {
     const { error: categoriesError } = await supabase
       .from("post_categories")
-      .insert(categoryInserts)
+      .insert(
+        categories.map((categoryId) => ({
+          post_id: post.id,
+          category_id: categoryId,
+        }))
+      )
 
     if (categoriesError) {
-      console.error('Categories error:', categoriesError);
-      throw new Error(`Failed to add categories: ${categoriesError.message}`)
+      console.error("Error adding categories:", categoriesError)
+      throw new Error("Failed to add categories")
     }
   }
 
-  // Insert tags if any
-  if (formValues.tags?.length > 0) {
-    const tagInserts = formValues.tags.map((tagId: string) => ({
-      post_id: post.id,
-      tag_id: tagId,
-    }));
-    console.log('Tag inserts:', tagInserts);
-
+  // Add tags
+  if (tags.length > 0) {
     const { error: tagsError } = await supabase
       .from("post_tags")
-      .insert(tagInserts)
+      .insert(
+        tags.map((tagId) => ({
+          post_id: post.id,
+          tag_id: tagId,
+        }))
+      )
 
     if (tagsError) {
-      console.error('Tags error:', tagsError);
-      throw new Error(`Failed to add tags: ${tagsError.message}`)
+      console.error("Error adding tags:", tagsError)
+      throw new Error("Failed to add tags")
     }
   }
 

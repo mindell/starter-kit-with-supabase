@@ -5,7 +5,7 @@ import { CategoryForm } from "@/components/cms/category-form"
 export default async function EditCategoryPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
   const supabase = await createClient()
   
@@ -16,12 +16,12 @@ export default async function EditCategoryPage({
   if (!user) {
     return redirect("/sign-in")
   }
-
+  const idParams = await params;
   // Get category
   const { data: category } = await supabase
     .from("categories")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", idParams.id)
     .single()
 
   if (!category) {
@@ -36,7 +36,7 @@ export default async function EditCategoryPage({
     const { error } = await supabase
       .from("categories")
       .update(formData)
-      .eq("id", params.id)
+      .eq("id", idParams.id)
 
     if (error) throw error
   }
@@ -46,7 +46,7 @@ export default async function EditCategoryPage({
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Edit Category</h1>
         <CategoryForm 
-          id={params.id}
+          id={idParams.id}
           defaultValues={category}
           onSubmit={handleSubmit} 
         />

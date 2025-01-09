@@ -1,6 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@/utils/supabase/server'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -15,14 +13,12 @@ import {
   BreadcrumbList,
 } from '@/components/ui/breadcrumb'
 
-// Create a Supabase client for static generation
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+
 
 // Generate static params for all tags
 export async function generateStaticParams() {
+  // Create a Supabase client for static generation
+  const supabase = await createClient(true)
   const { data: tags } = await supabase
     .from('tags')
     .select('slug')
@@ -34,6 +30,8 @@ export async function generateStaticParams() {
 
 // Generate metadata for each tag
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  // Create a Supabase client for static generation
+  const supabase = await createClient(true)
   const slugParam = await params;
   const { data: tag } = await supabase
     .from('tags')
@@ -62,18 +60,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function TagPage({ params }: { params: Promise<{ slug: string }> }) {
   const slugParams = await params
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
+  // Create a Supabase client for static generation
+  const supabase = await createClient()
 
   // Get tag info
   const { data: tag } = await supabase

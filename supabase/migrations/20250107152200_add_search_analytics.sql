@@ -1,14 +1,54 @@
--- Create search analytics table
+-- Create search analytics table with RLS enabled
 create table if not exists public.search_analytics (
     id uuid primary key default gen_random_uuid(),
     query text not null,
     category_slug text,
     tag_slug text,
     results_count integer not null,
-    created_at timestamptz default now(),
     user_id uuid references auth.users(id),
-    session_id text
+    session_id text,
+    created_at timestamptz default now()
 );
+
+-- Enable RLS
+alter table public.search_analytics enable row level security;
+
+-- Only allow admins to view search analytics
+create policy "Only admins can view search analytics"
+    on public.search_analytics
+    for select
+    to authenticated
+    using (
+        exists (
+            select 1 from public.roles_assignment ra
+            inner join public.user_roles ur on ra.role_id = ur.role_id
+            where ra.user_id = auth.uid()
+            and ur.role_name in ('admin', 'super_admin')
+        )
+    );
+
+-- Allow authenticated users to insert their own search data
+create policy "Users can insert their own search data"
+    on public.search_analytics
+    for insert
+    to authenticated
+    with check (
+        auth.uid() = user_id
+    );
+
+-- Allow admins to delete search analytics
+create policy "Only admins can delete search analytics"
+    on public.search_analytics
+    for delete
+    to authenticated
+    using (
+        exists (
+            select 1 from public.roles_assignment ra
+            inner join public.user_roles ur on ra.role_id = ur.role_id
+            where ra.user_id = auth.uid()
+            and ur.role_name in ('admin', 'super_admin')
+        )
+    );
 
 -- Create indexes for analytics queries
 create index if not exists search_analytics_query_idx on public.search_analytics(query);

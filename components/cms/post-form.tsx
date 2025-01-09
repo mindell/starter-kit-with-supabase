@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -44,7 +44,8 @@ const postFormSchema = z.object({
     .string()
     .max(500, "Excerpt must be less than 500 characters")
     .optional(),
-  status: z.enum(["draft", "published", "archived"]),
+  status: z.enum(["draft", "scheduled", "published", "archived"]),
+  scheduled_at: z.string().optional(),
   categories: z.array(z.string()).min(1, "Select at least one category"),
   tags: z.array(z.string()),
   seo_title: z
@@ -74,6 +75,9 @@ export function PostForm({
 }: PostFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showScheduling, setShowScheduling] = useState(
+    defaultValues?.status === "scheduled"
+  )
 
   const form = useForm<PostFormValues>({
     resolver: zodResolver(postFormSchema),
@@ -83,12 +87,22 @@ export function PostForm({
       content: defaultValues?.content || "",
       excerpt: defaultValues?.excerpt || "",
       status: defaultValues?.status || "draft",
+      scheduled_at: defaultValues?.scheduled_at || "",
       seo_title: defaultValues?.seo_title || "",
       seo_description: defaultValues?.seo_description || "",
       categories: defaultValues?.categories || [],
       tags: defaultValues?.tags || [],
     },
   })
+
+  // Watch status field to show/hide scheduling
+  const status = form.watch("status")
+  useEffect(() => {
+    setShowScheduling(status === "scheduled")
+    if (status !== "scheduled") {
+      form.setValue("scheduled_at", "")
+    }
+  }, [status, form])
 
   // Handle form submission
   const handleSubmit = async (data: PostFormValues) => {
@@ -235,6 +249,7 @@ export function PostForm({
                 </FormControl>
                 <SelectContent>
                   <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
                   <SelectItem value="published">Published</SelectItem>
                   <SelectItem value="archived">Archived</SelectItem>
                 </SelectContent>
@@ -243,6 +258,30 @@ export function PostForm({
             </FormItem>
           )}
         />
+
+        {/* Scheduled At - Only show when status is scheduled */}
+        {showScheduling && (
+          <FormField
+            control={form.control}
+            name="scheduled_at"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Schedule Publication</FormLabel>
+                <FormControl>
+                  <Input
+                    type="datetime-local"
+                    {...field}
+                    min={new Date().toISOString().slice(0, 16)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Choose when to publish this post
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {/* Categories */}
         <FormField

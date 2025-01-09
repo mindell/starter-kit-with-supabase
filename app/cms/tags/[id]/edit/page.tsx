@@ -5,10 +5,10 @@ import { TagForm } from "@/components/cms/tag-form"
 export default async function EditTagPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
   const supabase = await createClient()
-  
+  const idParams = await params;
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -21,7 +21,7 @@ export default async function EditTagPage({
   const { data: tag } = await supabase
     .from("tags")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", idParams.id)
     .single()
 
   if (!tag) {
@@ -36,7 +36,7 @@ export default async function EditTagPage({
     const { error } = await supabase
       .from("tags")
       .update(formData)
-      .eq("id", params.id)
+      .eq("id", idParams.id)
 
     if (error) throw error
   }
@@ -46,7 +46,7 @@ export default async function EditTagPage({
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Edit Tag</h1>
         <TagForm 
-          id={params.id}
+          id={idParams.id}
           defaultValues={tag}
           onSubmit={handleSubmit} 
         />

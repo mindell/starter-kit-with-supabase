@@ -1,5 +1,4 @@
 import { createClient } from '@/utils/supabase/server'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { nanoid } from 'nanoid'
 
@@ -14,10 +13,9 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit
     const sessionId = searchParams.get('sid') || nanoid()
 
-    // Create Supabase client
-    const cookieStore = cookies()
-    const supabase = createClient(cookieStore)
-
+    // Create Supabase client\
+    const supabase = await createClient()
+    
     // Get search results
     const { data: posts, error, count } = await supabase
       .rpc('search_posts', {

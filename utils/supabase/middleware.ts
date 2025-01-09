@@ -1,8 +1,11 @@
-
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "./server";
+import { PROTECTED_PATHS, PUBLIC_PATHS } from "@/utils/constants";
+
 export const updateSession = async (request: NextRequest) => {
   try {
+    const path = request.nextUrl.pathname;
+
     // Create an unmodified response
     let response = NextResponse.next({
       request: {
@@ -10,23 +13,25 @@ export const updateSession = async (request: NextRequest) => {
       },
     });
 
+    // Check if path is public (double-check)
+    const isPublicPath = PUBLIC_PATHS.some(pp => 
+      path === pp || path.startsWith(`${pp}/`)
+    );
+    if (isPublicPath) {
+      return response;
+    }
+
     const supabase = await createClient();
 
-    // Refresh session if expired
+    // Check authentication
     const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
 
-    // Check if user is authenticated
+    // If not authenticated, redirect to sign-in
     if (userError) {
-      // If accessing protected routes, redirect to sign-in
-      if (request.nextUrl.pathname.startsWith('/admin') ||
-          request.nextUrl.pathname.startsWith('/editor') ||
-          request.nextUrl.pathname.startsWith('/author')) {
-        return NextResponse.redirect(new URL("/sign-in", request.url));
-      }
-      return response;
+      return NextResponse.redirect(new URL("/sign-in", request.url));
     }
 
     // Get user role
@@ -41,59 +46,41 @@ export const updateSession = async (request: NextRequest) => {
       .eq('user_id', user?.id)
       .single();
 
-    console.log('Role Query Result:', { roleData, roleError }); // Debug log
-    console.log('User ID:', user?.id); // Debug log
-
     const role = roleData?.user_roles?.role_name;
 
-    console.log('User Role:', role); // For debugging
-
-    // Role-based access control
-    if (request.nextUrl.pathname.startsWith('/admin/roles') && role !== 'super_admin') {
-      console.log('Unauthorized: Requires super_admin role'); // For debugging
+    // If no role assigned, redirect to unauthorized
+    if (!role || roleError) {
       return NextResponse.redirect(new URL("/unauthorized", request.url));
     }
 
-    if (request.nextUrl.pathname.startsWith('/admin') && 
-        !['super_admin', 'admin'].includes(role as string)) {
-      console.log('Unauthorized: Requires admin or super_admin role'); // For debugging
-      return NextResponse.redirect(new URL("/unauthorized", request.url));
-    }
-
-    if (request.nextUrl.pathname.startsWith('/editor') && 
-        !['super_admin', 'admin', 'editor'].includes(role as string)) {
-      console.log('Unauthorized: Requires editor, admin or super_admin role'); // For debugging
-      return NextResponse.redirect(new URL("/unauthorized", request.url));
-    }
-
-    if (request.nextUrl.pathname.startsWith('/author') && 
-        !['super_admin', 'admin', 'editor', 'author'].includes(role as string)) {
-      console.log('Unauthorized: Requires author, editor, admin or super_admin role'); // For debugging
-      return NextResponse.redirect(new URL("/unauthorized", request.url));
-    }
-
-    // Redirect authenticated users from public pages
-    if (request.nextUrl.pathname === "/" && user) {
-      switch(role) {
-        case 'super_admin':
-        case 'admin':
-          return NextResponse.redirect(new URL("/admin", request.url));
-        case 'editor':
-          return NextResponse.redirect(new URL("/editor", request.url));
-        case 'author':
-          return NextResponse.redirect(new URL("/author", request.url));
-        default:
+    // Check path against protected paths
+    for (const [key, config] of Object.entries(PROTECTED_PATHS)) {
+      if (path.startsWith(config.path)) {
+        // Check if user has required role
+        if (!config.roles.includes(role)) {
           return NextResponse.redirect(new URL("/unauthorized", request.url));
+        }
+        break;
       }
     }
 
+    // If we get here, user is authenticated and authorized
     return response;
   } catch (e) {
-    console.error('Middleware Error:', e); // For debugging
-    return NextResponse.next({
-      request: {
-        headers: request.headers,
-      },
-    });
+    // On error, allow public paths, redirect others to sign-in
+    const isPublicPath = PUBLIC_PATHS.some(pp => 
+      request.nextUrl.pathname === pp || 
+      request.nextUrl.pathname.startsWith(`${pp}/`)
+    );
+    
+    if (isPublicPath) {
+      return NextResponse.next({
+        request: {
+          headers: request.headers,
+        },
+      });
+    }
+
+    return NextResponse.redirect(new URL("/sign-in", request.url));
   }
 };

@@ -39,6 +39,20 @@ async function BlogNavigation() {
 }
 
 export async function BlogHeader() {
+  const supabase = await createClient()
+
+  // Get categories and tags for search filters
+  const [{ data: categories }, { data: tags }] = await Promise.all([
+    supabase
+      .from('categories')
+      .select('name, slug')
+      .order('name'),
+    supabase
+      .from('tags')
+      .select('name, slug')
+      .order('name')
+  ])
+
   return (
     <header className="border-b">
       <div className="container mx-auto py-4 space-y-4">
@@ -46,7 +60,7 @@ export async function BlogHeader() {
           <Link href="/blog" className="text-2xl font-bold">
             Blog
           </Link>
-          <SearchBar />
+          <SearchBar categories={categories} tags={tags} />
         </div>
         <BlogNavigation />
       </div>
