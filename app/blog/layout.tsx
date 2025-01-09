@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { BlogHeader } from '@/components/blog/header'
+import { Suspense } from 'react'
 
 export const metadata: Metadata = {
   title: {
@@ -26,8 +27,12 @@ export default function BlogLayout({
 }) {
   return (
     <div className="min-h-screen bg-background">
-      <BlogHeader />
-      {children}
+      <Suspense fallback={<div className="h-16 border-b" />}>
+        <BlogHeader />
+      </Suspense>
+      <Suspense fallback={<div className="animate-pulse" />}>
+        {children}
+      </Suspense>
     </div>
   )
 }

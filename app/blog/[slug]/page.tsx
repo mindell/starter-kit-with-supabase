@@ -1,7 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { serialize } from 'next-mdx-remote/serialize'
 import { MDXContent } from '@/components/mdx-content'
 import {
   Breadcrumb,
@@ -12,8 +11,8 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
 import {Category, Tag} from '@/types/blog'
-
-
+import { Suspense } from 'react'
+import MarkdownIt from 'markdown-it'
 
 // Generate static params for all published posts
 export async function generateStaticParams() {
@@ -95,7 +94,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function BlogPost({ params }: { params: Promise<{ slug: string }> }) {
   const slugParams = await params
-  // Create a Supabase client for static generation
   const supabase = await createClient()
 
   const { data: post } = await supabase
@@ -127,44 +125,10 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
     notFound()
   }
 
-  // Serialize MDX content
-  const serializedContent = await serialize(post.content, {
-    mdxOptions: {
-      development: process.env.NODE_ENV === 'development'
-    }
-  })
-
-  // Generate article structured data
-  const articleStructuredData = {
-    '@context': 'https://schema.org',
-    '@type': 'Article',
-    headline: post.title,
-    description: post.excerpt,
-    image: post.featured_image,
-    datePublished: post.published_at,
-    dateModified: post.updated_at,
-    author: {
-      '@type': 'Person',
-      name: post.author?.display_name,
-      image: post.author?.avatar_url,
-    },
-    publisher: {
-      '@type': 'Organization',
-      name: process.env.NEXT_PUBLIC_SITE_NAME || 'Your Site Name',
-      logo: {
-        '@type': 'ImageObject',
-        url: `${process.env.NEXT_PUBLIC_BASE_URL}/opengraph-image.png`,
-      },
-    },
-  }
+  const md = new MarkdownIt()
 
   return (
-    <article className="container py-8 mx-auto">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleStructuredData) }}
-      />
-
+    <article className="max-w-2xl mx-auto px-4 py-8">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -182,28 +146,24 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
       </Breadcrumb>
 
       <header className="mb-8">
-        <h1 className="mb-2 text-4xl font-bold">{post.title}</h1>
+        <h1 className="text-4xl font-bold mb-4">{post.title}</h1>
         {post.excerpt && (
-          <p className="text-xl text-muted-foreground">{post.excerpt}</p>
+          <p className="text-xl text-gray-600 mb-4">{post.excerpt}</p>
         )}
-        <div className="flex items-center gap-4 mt-4">
-          {post.author && (
-            <div className="flex items-center gap-2">
-              {post.author.avatar_url && (
-                <img
-                  src={post.author.avatar_url}
-                  alt={post.author.display_name}
-                  className="w-8 h-8 rounded-full"
-                />
-              )}
-              <span>{post.author.display_name}</span>
-            </div>
+        <div className="flex items-center text-gray-600">
+          {post.author?.avatar_url && (
+            <img
+              src={post.author.avatar_url}
+              alt={post.author.display_name}
+              className="w-10 h-10 rounded-full mr-3"
+            />
           )}
-          {post.published_at && (
-            <time dateTime={post.published_at} className="text-muted-foreground">
+          <div>
+            <p className="font-medium">{post.author?.display_name}</p>
+            <p className="text-sm">
               {new Date(post.published_at).toLocaleDateString()}
-            </time>
-          )}
+            </p>
+          </div>
         </div>
       </header>
 
@@ -211,30 +171,38 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
         <img
           src={post.featured_image}
           alt={post.title}
-          className="w-full h-[400px] object-cover rounded-lg mb-8"
+          className="w-full h-64 object-cover rounded-lg mb-8"
         />
       )}
 
       <div className="prose prose-lg max-w-none">
-        <MDXContent serializedContent={serializedContent} />
+        <Suspense fallback={<div className="animate-pulse space-y-4">
+          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+          <div className="h-4 bg-gray-200 rounded"></div>
+          <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+        </div>}>
+          <div dangerouslySetInnerHTML={{ __html: md.render(post.content || '') }} />
+        </Suspense>
       </div>
 
       <footer className="mt-8 pt-8 border-t">
-        <div className="flex flex-wrap gap-2">
-          {post.categories?.map(({category}:Category) => (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {post.categories?.map(({category}: Category) => (
             <a
               key={category.slug}
               href={`/blog/category/${category.slug}`}
-              className="px-3 py-1 bg-secondary text-secondary-foreground rounded-full text-sm"
+              className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-sm"
             >
               {category.name}
             </a>
           ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
           {post.tags?.map(({tag}: Tag) => (
             <a
               key={tag.slug}
               href={`/blog/tag/${tag.slug}`}
-              className="px-3 py-1 border rounded-full text-sm"
+              className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-sm"
             >
               {tag.name}
             </a>

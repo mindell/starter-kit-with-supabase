@@ -2,8 +2,6 @@ import { createClient } from '@/utils/supabase/server'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { serialize } from 'next-mdx-remote/serialize'
-import { MDXContent } from '@/components/mdx-content'
 import {
   Breadcrumb,
   BreadcrumbSeparator,
@@ -12,8 +10,6 @@ import {
   BreadcrumbPage,
   BreadcrumbList,
 } from '@/components/ui/breadcrumb'
-
-
 
 // Generate static params for all tags
 export async function generateStaticParams() {
@@ -60,7 +56,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function TagPage({ params }: { params: Promise<{ slug: string }> }) {
   const slugParams = await params
-  // Create a Supabase client for static generation
   const supabase = await createClient()
 
   // Get tag info
@@ -72,15 +67,6 @@ export default async function TagPage({ params }: { params: Promise<{ slug: stri
 
   if (!tag) {
     notFound()
-  }
-
-  // Generate CollectionPage structured data
-  const structuredData = {
-    '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
-    name: `${tag.name} - Blog Posts`,
-    description: tag.description,
-    url: `${process.env.NEXT_PUBLIC_BASE_URL}/blog/tag/${tag.slug}`,
   }
 
   // Get all published posts with this tag
@@ -98,29 +84,8 @@ export default async function TagPage({ params }: { params: Promise<{ slug: stri
     .eq('post_tags.tag_id', tag.id)
     .order('published_at', { ascending: false })
 
-  if (!posts) {
-    return []
-  }
-
-  // Serialize MDX content for each post
-  const postsWithSerializedContent = await Promise.all(
-    posts.map(async (post) => ({
-      ...post,
-      serializedContent: post.content ? await serialize(post.content, {
-        mdxOptions: {
-          development: process.env.NODE_ENV === 'development'
-        }
-      }) : null
-    }))
-  )
-
   return (
-    <div className="container py-8 mx-auto">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
-
+    <div className="max-w-6xl mx-auto px-4 py-8">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -138,36 +103,35 @@ export default async function TagPage({ params }: { params: Promise<{ slug: stri
       </Breadcrumb>
 
       <header className="mb-8">
-        <h1 className="mb-2 text-4xl font-bold">{tag.name}</h1>
+        <h1 className="text-4xl font-bold mb-4">{tag.name}</h1>
         {tag.description && (
-          <p className="text-xl text-muted-foreground">{tag.description}</p>
+          <p className="text-xl text-gray-600">{tag.description}</p>
         )}
       </header>
 
       <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-        {postsWithSerializedContent?.map((post) => (
-          <article key={post.id} className="space-y-4">
+        {posts?.map((post) => (
+          <article key={post.id} className="flex flex-col space-y-4">
             {post.featured_image && (
-              <img
-                src={post.featured_image}
-                alt={post.title}
-                className="w-full h-48 object-cover rounded-lg"
-              />
-            )}
-            <h2 className="text-2xl font-bold">
-              <Link href={`/blog/${post.slug}`} className="hover:underline">
-                {post.title}
+              <Link href={`/blog/${post.slug}`} className="block">
+                <img
+                  src={post.featured_image}
+                  alt={post.title}
+                  className="w-full h-48 object-cover rounded-lg hover:opacity-90 transition-opacity"
+                />
               </Link>
-            </h2>
-            {post.excerpt && (
-              <p className="text-muted-foreground">{post.excerpt}</p>
             )}
-            {post.content && (
-              <div className="prose prose-lg max-w-none">
-                <MDXContent serializedContent={post.serializedContent} />
-              </div>
-            )}
-            <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold mb-2">
+                <Link href={`/blog/${post.slug}`} className="hover:text-indigo-600 transition-colors">
+                  {post.title}
+                </Link>
+              </h2>
+              {post.excerpt && (
+                <p className="text-gray-600 mb-4">{post.excerpt}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-4 text-sm text-gray-500">
               {post.author && (
                 <div className="flex items-center gap-2">
                   {post.author.avatar_url && (
@@ -177,11 +141,11 @@ export default async function TagPage({ params }: { params: Promise<{ slug: stri
                       className="w-6 h-6 rounded-full"
                     />
                   )}
-                  <span className="text-sm">{post.author.display_name}</span>
+                  <span>{post.author.display_name}</span>
                 </div>
               )}
               {post.published_at && (
-                <time dateTime={post.published_at} className="text-sm text-muted-foreground">
+                <time dateTime={post.published_at}>
                   {new Date(post.published_at).toLocaleDateString()}
                 </time>
               )}

@@ -2,21 +2,12 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import { SearchBar } from '@/components/search/search-bar'
 
-async function BlogNavigation() {
-  const supabase = await createClient()
+interface NavigationData {
+  categories: { name: string; slug: string }[] | null
+  tags: { name: string; slug: string }[] | null
+}
 
-  // Get categories and tags for navigation
-  const [{ data: categories }, { data: tags }] = await Promise.all([
-    supabase
-      .from('categories')
-      .select('name, slug')
-      .order('name'),
-    supabase
-      .from('tags')
-      .select('name, slug')
-      .order('name')
-  ])
-
+function BlogNavigation({ categories, tags }: NavigationData) {
   return (
     <nav className="space-x-4">
       <Link
@@ -41,7 +32,7 @@ async function BlogNavigation() {
 export async function BlogHeader() {
   const supabase = await createClient()
 
-  // Get categories and tags for search filters
+  // Get categories and tags for navigation and search
   const [{ data: categories }, { data: tags }] = await Promise.all([
     supabase
       .from('categories')
@@ -60,9 +51,11 @@ export async function BlogHeader() {
           <Link href="/blog" className="text-2xl font-bold">
             Blog
           </Link>
-          <SearchBar categories={categories} tags={tags} />
+          <div className="w-full max-w-lg mx-auto">
+            <SearchBar categories={categories} tags={tags} />
+          </div>
         </div>
-        <BlogNavigation />
+        <BlogNavigation categories={categories} tags={tags} />
       </div>
     </header>
   )
