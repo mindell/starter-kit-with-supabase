@@ -57,27 +57,34 @@ async function createPost(formData: FormData) {
     }
   }
 
-  // Start a transaction
+  // Create the post
   const { data: post, error: postError } = await supabase
     .from("posts")
     .insert({
       title,
       slug,
       content,
-      excerpt,
+      excerpt: excerpt || null,
       status,
-      scheduled_at: status === 'scheduled' ? scheduled_at : null,
+      scheduled_at: scheduled_at || null,
       published_at: status === 'published' ? new Date().toISOString() : null,
-      seo_title,
-      seo_description,
+      seo_title: seo_title || null,
+      seo_description: seo_description || null,
       author_id: user.id,
     })
     .select()
     .single()
 
   if (postError) {
-    console.error("Error creating post:", postError)
-    throw new Error("Failed to create post")
+    throw postError
+  }
+
+  // Delete any existing draft after successful post creation
+  if (formData.get("draft_id")) {
+    await supabase
+      .from("post_drafts")
+      .delete()
+      .eq("id", formData.get("draft_id"))
   }
 
   // Add categories
@@ -130,25 +137,36 @@ export default async function NewPostPage() {
     return redirect("/sign-in")
   }
 
-  // Get categories and tags
-  const [{ data: categories }, { data: tags }] = await Promise.all([
-    supabase.from("categories").select("id, name").order("name"),
-    supabase.from("tags").select("id, name").order("name"),
-  ])
+  // Get all categories
+  const { data: categories, error: categoriesError } = await supabase
+    .from("categories")
+    .select("*")
+    .order("name")
+
+  if (categoriesError) {
+    console.error("Error fetching categories:", categoriesError)
+    return <div>Error loading categories</div>
+  }
+
+  // Get all tags
+  const { data: tags, error: tagsError } = await supabase
+    .from("tags")
+    .select("*")
+    .order("name")
+
+  if (tagsError) {
+    console.error("Error fetching tags:", tagsError)
+    return <div>Error loading tags</div>
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">New Post</h1>
-      </div>
-
-      <div className="max-w-4xl">
-        <PostForm
-          categories={categories || []}
-          tags={tags || []}
-          onSubmit={createPost}
-        />
-      </div>
+    <div className="container mx-auto py-6">
+      <h1 className="text-2xl font-bold mb-6">Create New Post</h1>
+      <PostForm
+        categories={categories}
+        tags={tags}
+        onSubmit={createPost}
+      />
     </div>
   )
 }

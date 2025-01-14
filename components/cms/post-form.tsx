@@ -25,8 +25,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { MultiSelect } from "@/components/ui/multi-select"
-import { ForwardRefEditor } from "@/components/mdx/forward-ref-editor"
-import "@mdxeditor/editor/style.css"
+import { ProseMirrorEditor } from "@/components/cms/prosemirror-editor"
+import { AutoSaveStatus } from "@/components/cms/auto-save-status"
+import { usePostAutosave } from "@/hooks/use-post-autosave"
+import "@/styles/prosemirror.css"
 
 // Form validation schema
 const postFormSchema = z.object({
@@ -78,31 +80,54 @@ export function PostForm({
   const [showScheduling, setShowScheduling] = useState(
     defaultValues?.status === "scheduled"
   )
+  const [editorMode, setEditorMode] = useState<"richtext" | "markdown">("richtext")
+  const { draft, updateDraft, discardDraft, status } = usePostAutosave(defaultValues)
 
+  // Initialize form with either draft or default values
   const form = useForm<PostFormValues>({
     resolver: zodResolver(postFormSchema),
-    defaultValues: {
-      title: defaultValues?.title || "",
-      slug: defaultValues?.slug || "",
-      content: defaultValues?.content || "",
-      excerpt: defaultValues?.excerpt || "",
-      status: defaultValues?.status || "draft",
-      scheduled_at: defaultValues?.scheduled_at || "",
-      seo_title: defaultValues?.seo_title || "",
-      seo_description: defaultValues?.seo_description || "",
-      categories: defaultValues?.categories || [],
-      tags: defaultValues?.tags || [],
+    defaultValues: draft || defaultValues || {
+      title: "",
+      slug: "",
+      content: "",
+      excerpt: "",
+      status: "draft",
+      categories: [],
+      tags: [],
+      seo_title: "",
+      seo_description: "",
     },
   })
 
-  // Watch status field to show/hide scheduling
-  const status = form.watch("status")
+  // Update draft when form values change
   useEffect(() => {
-    setShowScheduling(status === "scheduled")
-    if (status !== "scheduled") {
+    const subscription = form.watch((value) => {
+      updateDraft(value as any)
+    })
+    return () => subscription.unsubscribe()
+  }, [form.watch, updateDraft])
+
+  // Show warning when leaving page with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (status.saving || form.formState.isDirty) {
+        e.preventDefault()
+        e.returnValue = ""
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [status.saving, form.formState.isDirty])
+
+  // Watch status field to show/hide scheduling
+  const statusField = form.watch("status")
+  useEffect(() => {
+    setShowScheduling(statusField === "scheduled")
+    if (statusField !== "scheduled") {
       form.setValue("scheduled_at", "")
     }
-  }, [status, form])
+  }, [statusField, form])
 
   // Handle form submission
   const handleSubmit = async (data: PostFormValues) => {
@@ -112,6 +137,13 @@ export function PostForm({
       
       // Create FormData object
       const formData = new FormData()
+      
+      // Add post ID if it exists in defaultValues
+      if (defaultValues?.id) {
+        formData.append('id', defaultValues.id)
+      }
+      
+      // Add other form data
       Object.entries(data).forEach(([key, value]) => {
         if (Array.isArray(value)) {
           console.log(`Array field ${key}:`, value);
@@ -146,6 +178,14 @@ export function PostForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-semibold">Edit Post</h2>
+          <AutoSaveStatus
+            lastSaved={status.lastSaved}
+            saving={status.saving}
+            error={status.error}
+          />
+        </div>
         {/* Title */}
         <FormField
           control={form.control}
@@ -199,14 +239,36 @@ export function PostForm({
           name="content"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Content</FormLabel>
-              <FormControl>
-                <div className="prose-container min-h-[500px] w-full rounded-md border">
-                  <ForwardRefEditor
-                    markdown={field.value}
-                    onChange={field.onChange}
-                  />
+              <div className="flex justify-between items-center">
+                <FormLabel>Content</FormLabel>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditorMode("markdown")}
+                    className={editorMode === "markdown" ? "bg-muted" : ""}
+                  >
+                    Markdown
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditorMode("richtext")}
+                    className={editorMode === "richtext" ? "bg-muted" : ""}
+                  >
+                    Rich Text
+                  </Button>
                 </div>
+              </div>
+              <FormControl>
+                <ProseMirrorEditor
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  mode={editorMode}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -380,17 +442,33 @@ export function PostForm({
           />
         </div>
 
-        <div className="flex justify-end space-x-4">
+        <div className="flex justify-between">
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push("/cms/posts")}
+            onClick={() => {
+              if (window.confirm("Are you sure you want to discard this draft?")) {
+                discardDraft()
+                router.back()
+              }
+            }}
           >
-            Cancel
+            Discard Draft
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Save Post"}
-          </Button>
+          <div className="space-x-2">
+            <Button
+              type="submit"
+              disabled={isSubmitting || !form.formState.isValid}
+            >
+              {isSubmitting ? (
+                <>
+                  Saving...
+                </>
+              ) : (
+                "Save & Publish"
+              )}
+            </Button>
+          </div>
         </div>
       </form>
     </Form>

@@ -128,7 +128,7 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
   const md = new MarkdownIt()
 
   return (
-    <article className="max-w-2xl mx-auto px-4 py-8">
+    <article className="max-w-6xl mx-auto px-4 py-8">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>

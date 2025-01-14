@@ -85,7 +85,7 @@ export default async function PostEditPage({
       .eq('user_id', user.id)
       .single()
 
-    if (!roleData || !['admin', 'editor', 'author'].includes(roleData.user_roles.role_name)) {
+    if (!roleData || !['super_admin','admin', 'editor', 'author'].includes(roleData.user_roles.role_name)) {
       throw new Error("Insufficient permissions")
     }
 
